@@ -6,5 +6,5 @@ await copyFile('node_modules/three/LICENSE', 'public/vendor/THREE-LICENSE.txt');
 await copyFile('node_modules/@dimforge/rapier3d-compat/dist/rapier.mjs', 'public/vendor/rapier.js');
 await copyFile('node_modules/@dimforge/rapier3d-compat/LICENSE', 'public/vendor/RAPIER-LICENSE.txt');
 for (const stale of ['public/vendor/rapier.mjs', 'public/linkage.js']) await rm(stale, { force: true });
-for (const file of ['app.js', 'physics.js', 'model.js', 'view.js', 'tyres.js', 'driving-input.js', 'sound.js', 'sound-model.js', 'sound-dsp.js', 'sound-worklet.js']) await copyFile(`src/${file}`, `public/${file}`);
+for (const file of ['app.js', 'physics.js', 'model.js', 'bodywork.js', 'setups.js', 'terrain.js', 'road-view.js', 'view.js', 'tyres.js', 'driving-input.js', 'sound.js', 'sound-model.js', 'sound-dsp.js', 'sound-worklet.js']) await copyFile(`src/${file}`, `public/${file}`);
 console.log('Built self-contained browser app.');

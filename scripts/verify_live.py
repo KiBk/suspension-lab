@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 root = Path(__file__).resolve().parents[1]
 base = 'https://suspension-lab.apps.kibk.net'
 checks = []
-for name in ['index.html', 'style.css', 'app.js', 'physics.js', 'model.js', 'view.js', 'tyres.js', 'driving-input.js', 'sound.js', 'sound-model.js', 'sound-dsp.js', 'sound-worklet.js', 'vendor/rapier.js', 'vendor/three.module.js', 'vendor/three.core.js', 'vendor/OrbitControls.js']:
+for name in ['index.html', 'style.css', 'app.js', 'physics.js', 'model.js', 'bodywork.js', 'setups.js', 'terrain.js', 'road-view.js', 'view.js', 'tyres.js', 'driving-input.js', 'sound.js', 'sound-model.js', 'sound-dsp.js', 'sound-worklet.js', 'vendor/rapier.js', 'vendor/three.module.js', 'vendor/three.core.js', 'vendor/OrbitControls.js']:
     local = (root / 'public' / name).read_bytes()
     with urllib.request.urlopen(base + '/' + name, timeout=30) as response:
         remote = response.read()

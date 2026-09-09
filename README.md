@@ -4,10 +4,11 @@ Interactive car suspension playground at https://suspension-lab.apps.kibk.net.
 
 Opening the page or pressing Reset spawns the car 70 cm above its settled pose,
 so gravity produces a short fall, landing and suspension rebound. Reset clears
-driving motion and preserves the selected suspension and quarter speed.
-The app uses a single dry-road surface, with no surface selector.
+driving motion and preserves the vehicle, road and quarter speed.
+Browse six full vehicle setups with the left/right buttons. Flat, Gravel and
+Rough trail select physical road geometry and corresponding tyre grip/resistance.
 
-Choose one of four suspension buttons beside the view controls. Grab the car's
+Choose a vehicle beside the view controls. Grab the car's
 actual surfaces: front/rear corners tilt that corner, the ends allow pitch, and
 the middle holds the body's pitch and roll while lifting the whole car. Grab any
 wheel to lift its physical hub and compress/articulate the suspension. Release
@@ -27,7 +28,7 @@ when focused and retain screen-reader labels. Cutaway, automatic rotation,
 pause, quarter speed, sound and reset share the same control dock. The removed
 Front and Drive/Park selectors are no longer needed: orbit freely and use the
 keyboard or always-visible on-screen arrows to drive.
-Each suspension has a ready-to-use setup; there are no tuning sliders.
+Each vehicle has a ready-to-use setup; there are no tuning sliders.
 
 ## Sound
 
@@ -78,23 +79,53 @@ Implementation references: [AudioWorklet](https://developer.mozilla.org/en-US/do
 [Web Audio playback activation](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices),
 and [Bridgestone tread pitch terminology](https://origin-prod-cloud.tires.bridgestone.com/en-us/learn/automotive/tire-terminology).
 
-## Suspension designs
+## Vehicle setups and terrain
 
-- **MacPherson:** hinged lower arms, wheel carriers and pivoting, telescoping struts.
-- **Double wishbone:** hinged upper and lower arms with rigid wheel carriers.
-- **Solid axle:** rigid beams located by four physical links per axle, including
-  triangulated upper links for lateral location. Chassis brackets keep the
-  locating links level at nominal ride height to avoid excessive roll steer;
-  dark mounting plates distinguish those brackets from the straight links.
-- **Baja truck:** wider, longer-travel front wishbones, a four-link live rear
-  axle with direct chassis mounts, larger tyres, coilovers and additional bypass
-  damping near compression. The rear links retain their original mounting heights
-  and travel arcs, without the lowered brackets used by the all-solid layout.
+The carousel selects six original body models and complete physical setups:
 
-Selecting a design resets the car and reveals the suspension. These are
-illustrative mechanisms, not replicas of specific production vehicles. The first
-three use the selected layout at both axles. Baja combines independent front
-suspension and a live rear axle.
+| Vehicle | Mass | Wheel travel | Front / rear | Drive |
+| --- | ---: | ---: | --- | --- |
+| Baja truck | 1,900 kg | 490 mm | Double wishbone / four-link live axle | Rear |
+| Old pickup | 1,750 kg | 240 mm | Four-link live axles at both ends | Rear |
+| Sports car | 1,280 kg | 80 mm | Double wishbones at both ends | Rear |
+| Family wagon | 1,600 kg | 160 mm | MacPherson / double wishbone | Front |
+| SUV | 2,150 kg | 220 mm | Double wishbones at both ends | All |
+| Economy hatchback | 1,050 kg | 130 mm | MacPherson / coupled trailing arms | Front |
+
+`src/setups.js` specifies mass, wheelbase, track, tyres, centre-of-mass height,
+spring/damper rates, anti-roll coupling, bump/droop stops and drive torque.
+Travel is measured vertically at the hubs relative to the chassis. The static
+pose is settled under gravity before fitting its travel stops. The economy
+rear arms are hinged around a transverse axis and coupled by an elastic roll
+force; the visible crossmember follows both arms. This approximates a torsion
+beam without a finite-element model of the twisting beam itself.
+
+These are illustrative archetypes, not measured replicas. The pickup uses
+coil springs and four-link location rather than pretending to model leaf-spring
+flex. Architectural references: [Mazda original MX-5 double wishbones](https://www.mazda.com/en/about/history/greatcar/roadster/03/),
+[Toyota Yaris struts and torsion beam](https://newsroom.toyota.eu/the-all-new-toyota-yaris/),
+and [TSCO truck layout](https://tscoracing.com/tsco-trophy-truck/).
+
+Flat retains the exact infinite collision plane. Gravel adds small, continuous
+corrugations, reduced grip and increased rolling resistance. Rough trail has
+rounded bumps and dips, approaching 53 cm peak-to-peak, with a smooth starting
+area that blends into the trail over four metres. Low cars can bottom out or
+lose traction; Baja has much more travel available. Loose stones and deformable
+soil are not simulated.
+
+`src/terrain.js` maintains a 3×3 neighbourhood of 12 m heightfield tiles with
+25 cm spacing. Adjacent tiles share identical boundary samples. Rapier's
+internal-edge correction suppresses false triangle-edge bumps; tiles under
+the car persist while neighbouring tiles stream in. Contact-force events supply
+actual solved tyre loads, because Rapier 0.20 heightfield manifolds do not expose
+their solver impulses. Local manifold points recover the tyre patches, and
+friction acts in each patch's road-tangent plane.
+
+`src/road-view.js` uses the exact same samples and triangle diagonal as physics.
+The circle clips this world-aligned terrain and its grid, so bumps and squares
+flow underneath the car as it travels. Road phase and contact points survive
+world rebasing. Setup/terrain changes reset and drop the car while preserving
+cutaway, orbit, quarter speed and sound choices.
 
 ## Physics and limits
 
@@ -102,26 +133,25 @@ suspension and a live rear axle.
 and rotates in all three dimensions. Actual arm bodies and revolute, spherical,
 prismatic and travel-limit joints guide the wheels and locate the axles.
 Springs and dampers apply equal-and-opposite forces at their body anchors.
-An infinite collision plane provides an exactly vertical road normal at every
-heading, preventing false sloped contacts from a large box-shaped ground.
+On Flat, an infinite collision plane provides an exactly vertical road normal
+at every heading, preventing false sloped contacts from a box-shaped ground.
 The drawing follows the physical body transforms and linkage endpoints.
 
-Live axles have firm compression and droop limits at both spring seats, measured
+All new setups have firm compression and droop limits at each wheel hub, measured
 along the chassis vertical. They prevent the linkage from folding above the
 body during hard drops and fast presses, while leaving lateral/longitudinal
 linkage motion and axle articulation free. Rapier 0.20's per-axis generic limits
 are configured through its raw joint-set API; no body positions are clamped.
 
-The 1,180 kg chassis has explicit rotational inertia. Wheel carriers, arms,
-struts and axle beams add mass, giving totals of 1,452 kg (MacPherson), 1,460 kg
-(wishbone), 1,540 kg (solid axle) and 1,500 kg (Baja). Suspension tuning differs
-between layouts. Gravity settling determines the initial pose.
+Chassis mass is total vehicle mass minus the actual unsprung bodies. Rotational
+inertia follows each body's proportions. Gravity settling determines the initial
+pose. The former four standalone suspension layouts remain available to the
+offline regression tests, while the browser uses only the six vehicle setups.
 
 A kinematic grip follows the vertical pointer target at up to 9.6 m/s (four
 times the former limit), with an 80 m/s² acceleration/braking ramp. The joint
 solver uses extra iterations while a grip is active. Body grabs can press down
-to 0.35 m below the settled body height; wheel targets respect the tyre's ground
-clearance. Downward limits use the settled pose, so an airborne pickup can also
+through the chosen vehicle's bump travel; wheel targets respect the tyre's ground clearance and the local road height. Downward limits use the settled pose, so an airborne pickup can also
 be lowered into compression. The grab uses a generic joint whose only locked translation is world vertical.
 The hand is the first body, so its fixed reference frame keeps that constraint
 vertical even when the car tilts or turns. Horizontal translations remain free;
@@ -134,8 +164,7 @@ locating links, so some fore/aft movement during travel is physically expected.
 
 Angular stops keep the independent linkages on their intended assembly branch;
 in particular, the Baja lower arms stop before the four-bar can fold and turn
-a wheel sideways. Spring damping is approximately 40% lower than the initial
-rigid-body release.
+a wheel sideways. Each vehicle uses its own damping and anti-roll rates.
 
 Arrow keys start driving: Up accelerates forward, Down brakes and then reverses,
 and Left/Right steer. Release to coast with gradual tyre rolling resistance.
@@ -164,26 +193,32 @@ reaction torque reaches its suspension carrier. Wheel rotation follows this
 physical rolling state; there is no idle spin animation.
 
 Rolling resistance applies a contact-only opposing force at each wheel hub,
-`F = -Crr × load × tanh(hubSpeed / 0.2)`. Illustrative coefficients are 0.012
-for the road layouts and 0.018 for Baja. It uses the tyre load and wheel heading,
+`F = -Crr × load × tanh(hubSpeed / 0.2)`. Illustrative coefficients range from 0.010 for the sports car to 0.018 for Baja,
+with additional resistance on Gravel and Rough trail. It uses the tyre load and wheel heading,
 acts in forward and reverse, fades smoothly near rest and becomes zero in the
 air. Wheel inertia and traction still determine the rotor response. This adds
 no velocity clamp or global damping while driving; aerodynamic drag is omitted.
 The low-speed transition prevents resistance from driving the car backwards.
 Model reference: [MathWorks rolling resistance](https://www.mathworks.com/help/sdl/ref/rollingresistance.html).
 
-The browser uses dry-road grip for both cornering and suspension scrub during
-compression/rebound. Offline tests also compare lower-grip variants: a 0.75 m
+The browser multiplies baseline dry-road grip by the vehicle and terrain
+coefficients for cornering and suspension scrub during compression/rebound. Offline tests also compare lower-grip variants: a 0.75 m
 drop compresses independent suspensions farther on ice because lateral scrub
 meets less resistance; the fixed-track solid axle shows much less difference.
 
 Front tyres steer with virtual knuckles and Ackermann angles. The drivetrain
-uses equal drive torque at all four wheels. These are illustrative parameters,
+distributes torque equally across the selected driven wheels; braking acts on
+all four wheels. Detailed differentials and gearboxes are omitted. These are illustrative parameters,
 not fitted to a measured tyre or production vehicle. Rigid contact shapes omit
 vertical carcass deformation; camber thrust, self-aligning torque, detailed
 steering links and structural flex are also omitted. This is an educational
 approximation, not a validated engineering design tool. The former analytical `src/linkage.js` is unused
 historical source and is excluded from the browser build.
+
+Tests also cover all six vehicle masses and mechanisms, full body/wheel picking,
+short-travel stops through hard drops and fast grabs, driving every vehicle on
+both uneven roads, matching physical/rendered triangles and seams, and airborne
+contact gating across terrain rebases.
 
 Tests cover surface picking at different headings, all sixteen wheel/layout
 combinations lifting and settling, downward compression/rebound, fast body lifts,

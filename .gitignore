@@ -27,3 +27,8 @@ evidence/
 .docker/
 .ssh/
 credentials*
+
+public/bodywork.js
+public/setups.js
+public/terrain.js
+public/road-view.js

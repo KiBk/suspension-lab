@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CORNERS } from './physics.js';
+import { buildBodywork } from './bodywork.js';
 
 // Body-local zones stay attached to the car at any heading or camera angle.
 export function bodyZone(p){
@@ -11,17 +12,17 @@ export function bodyZone(p){
 
 export function makeCar(scene) {
   const body = new THREE.Group(); scene.add(body);
-  const shells = [], windows = [];
+  let shells = [], windows = [], bodywork=new THREE.Group(), currentWorld=null, currentSetup=null, faded=false; body.add(bodywork);
   const material = (color, metalness = 0, roughness = .45) => new THREE.MeshStandardMaterial({ color, metalness, roughness });
   const paint = material('#a9bbb0', .45, .27), dark = material('#263833', .35, .4);
   const glass = material('#283e3c', .55, .14), rubber = material('#242925', .0, .92);
   const metal = material('#bbc3b5', .82, .24), orange = material('#e06b35', .32, .3);
   const black = material('#333a34', .4, .45), light = new THREE.MeshStandardMaterial({ color: '#fff2cc', emissive: '#f0deb0', emissiveIntensity: .65 });
   const red = new THREE.MeshStandardMaterial({ color:'#bb4634', emissive:'#e43c20', emissiveIntensity:.5 });
-  function mesh(geo, mat, parent = body, p = [0,0,0]) {
+  function mesh(geo, mat, parent = bodywork, p = [0,0,0]) {
     const m = new THREE.Mesh(geo,mat); m.position.set(...p); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
   }
-  const box = (size, mat, parent = body, p = [0,0,0]) => mesh(new THREE.BoxGeometry(...size),mat,parent,p);
+  const box = (size, mat, parent = bodywork, p = [0,0,0]) => mesh(new THREE.BoxGeometry(...size),mat,parent,p);
   function profile(points, width, mat) {
     const s = new THREE.Shape(); points.forEach(([z,y],i) => i ? s.lineTo(z,y) : s.moveTo(z,y)); s.closePath();
     const g = new THREE.ExtrudeGeometry(s,{depth:width,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:.025,bevelThickness:.025});
@@ -29,6 +30,7 @@ export function makeCar(scene) {
     for(let i=0;i<pos.count;i++){const z=pos.getX(i),y=pos.getY(i),x=pos.getZ(i)-width/2;pos.setXYZ(i,x,y,-z);}
     g.computeVertexNormals(); return mesh(g,mat);
   }
+  function buildLegacy(){
   // Sculpted side silhouette with actual wheel-arch cutouts.
   const side = new THREE.Shape();
   side.moveTo(-2.13,-.32);side.lineTo(-1.83,-.32);
@@ -46,28 +48,30 @@ export function makeCar(scene) {
   for(const w of windows) w.scale.z=-1;
   shells[shells.length-1].scale.z=-1;
   for(const x of [-.765,.765]) {
-    const pillar=box([.045,.58,.06],paint,body,[x,.64,-.2]);pillar.rotation.x=.07;shells.push(pillar);
-    const sill=box([.07,.045,2.02],dark,body,[x,.36,0]);shells.push(sill);
-    shells.push(box([.035,.033,.22],metal,body,[Math.sign(x)*.923,.18,-.35]));
-    const mirror=box([.22,.1,.17],dark,body,[Math.sign(x)*1.0,.37,.67]);shells.push(mirror);
+    const pillar=box([.045,.58,.06],paint,bodywork,[x,.64,-.2]);pillar.rotation.x=.07;shells.push(pillar);
+    const sill=box([.07,.045,2.02],dark,bodywork,[x,.36,0]);shells.push(sill);
+    shells.push(box([.035,.033,.22],metal,bodywork,[Math.sign(x)*.923,.18,-.35]));
+    const mirror=box([.22,.1,.17],dark,bodywork,[Math.sign(x)*1.0,.37,.67]);shells.push(mirror);
   }
   // Bonnet stripe and badge, narrow lamps, bumpers, grille and rear spoiler.
-  shells.push(box([.12,.012,.82],orange,body,[.49,.316,1.50]));
-  shells.push(box([.30,.018,.06],metal,body,[0,.273,1.99]));
+  shells.push(box([.12,.012,.82],orange,bodywork,[.49,.316,1.50]));
+  shells.push(box([.30,.018,.06],metal,bodywork,[0,.273,1.99]));
   for(const x of [-.6,.6]) {
-    shells.push(box([.44,.075,.05],light,body,[x,.11,2.151]));
-    shells.push(box([.45,.065,.04],red,body,[x,.09,-2.135]));
+    shells.push(box([.44,.075,.05],light,bodywork,[x,.11,2.151]));
+    shells.push(box([.45,.065,.04],red,bodywork,[x,.09,-2.135]));
   }
-  shells.push(box([1.78,.095,.11],dark,body,[0,-.26,2.13]));
-  shells.push(box([1.77,.10,.10],dark,body,[0,-.25,-2.13]));
-  shells.push(box([.81,.16,.04],black,body,[0,-.10,2.166]));
-  for(let x=-.35;x<=.36;x+=.1)shells.push(box([.014,.13,.012],metal,body,[x,-.10,2.19]));
-  shells.push(box([1.64,.047,.24],dark,body,[0,.31,-2.02]));
+  shells.push(box([1.78,.095,.11],dark,bodywork,[0,-.26,2.13]));
+  shells.push(box([1.77,.10,.10],dark,bodywork,[0,-.25,-2.13]));
+  shells.push(box([.81,.16,.04],black,bodywork,[0,-.10,2.166]));
+  for(let x=-.35;x<=.36;x+=.1)shells.push(box([.014,.13,.012],metal,bodywork,[x,-.10,2.19]));
+  shells.push(box([1.64,.047,.24],dark,bodywork,[0,.31,-2.02]));
   // Structural rails remain visible in cutaway view.
-  shells.push(box([1.40,.075,3.9],black,body,[0,-.18,0]));
-  for(const x of [-.57,.57]) box([.11,.10,3.75],metal,body,[x,-.12,0]);
-  for(const z of [-1.36,1.36]) box([1.66,.08,.12],metal,body,[0,-.04,z]);
-  shells.push(box([.6,.22,.6],dark,body,[0,-.04,1.12]));
+  shells.push(box([1.40,.075,3.9],black,bodywork,[0,-.18,0]));
+  for(const x of [-.57,.57]) box([.11,.10,3.75],metal,bodywork,[x,-.12,0]);
+  for(const z of [-1.36,1.36]) box([1.66,.08,.12],metal,bodywork,[0,-.04,z]);
+  shells.push(box([.6,.22,.6],dark,bodywork,[0,-.04,1.12]));
+  }
+  buildLegacy();
   const wheels=[],rotors=[],springs=[];
   const cylinder = new THREE.CylinderGeometry(1,1,1,16);
   function rod(parent,mat,radius){const m=mesh(cylinder,mat,parent);m.userData.radius=radius;return m;}
@@ -116,6 +120,7 @@ export function makeCar(scene) {
     outline.rotation.y=Math.PI/2;outline.position.x=wheels.indexOf(w)%2===0?.15:-.15;
     w.add(outline);outline.visible=false;outline.raycast=()=>{};return outline;
   });
+  const torsionBeam=rod(scene,black,.042);
   const beams=[0,1].map(()=>({beam:rod(scene,black,.068),diff:mesh(new THREE.SphereGeometry(.17,20,14),dark,scene)}));
   function springPosition(s,bottom,top,damperOffset=0){
     const delta=new THREE.Vector3().subVectors(top,bottom),length=delta.length();
@@ -127,6 +132,14 @@ export function makeCar(scene) {
     s.mounts.forEach(m=>m.quaternion.copy(s.coil.quaternion));
   }
   function update(sim){
+    if(currentWorld!==sim.world){
+      currentWorld=sim.world;currentSetup=sim.setup;
+      bodywork.traverse(m=>{m.geometry?.dispose();if(m.userData.ownMaterial)m.material.dispose();});
+      bodywork.userData.paint?.dispose();body.remove(bodywork);shells=[];windows=[];
+      if(sim.setup){const built=buildBodywork(sim.setup,sim.restHeight,{dark,glass,metal,orange,black,light,red});bodywork=built.group;shells=built.shells;windows=built.windows;bodywork.userData.paint=built.paint;body.add(bodywork);}
+      else{bodywork=new THREE.Group();body.add(bodywork);buildLegacy();}
+      cutaway(faded);
+    }
     const frame=sim.frame();body.position.copy(frame.position);body.quaternion.copy(frame.rotation);body.updateMatrixWorld(true);
     wheels.forEach((wheel,i)=>{wheel.position.copy(frame.wheels[i].position);wheel.quaternion.copy(frame.wheels[i].rotation);wheel.scale.setScalar(frame.wheels[i].radius/.35);rotors[i].rotation.x=frame.wheels[i].spin;});
     physicalLinks.forEach((m,i)=>{
@@ -137,6 +150,7 @@ export function makeCar(scene) {
       if(bracket){m.scale.x=.075;m.scale.z=.20;}
     });
     beams.forEach(({beam,diff},i)=>{const p=frame.beams[i];beam.visible=diff.visible=!!p;if(p){between(beam,from(p.a),from(p.b));diff.position.copy(p.a).add(p.b).multiplyScalar(.5);diff.quaternion.copy(p.rotation);}});
+    torsionBeam.visible=frame.torsion?.length===2;if(torsionBeam.visible)between(torsionBeam,from(frame.torsion[0]),from(frame.torsion[1]));
     frame.springs.forEach((spring,i)=>{
       const s=springs[i],bottom=from(spring.bottom),top=from(spring.top);
       springPosition(s,bottom,top,sim.wheelParts[i].kind==='solid'?.18:0);
@@ -150,6 +164,7 @@ export function makeCar(scene) {
     return frame;
   }
   function cutaway(enabled){
+    faded=enabled;
     // Fade bodywork while keeping structural parts, coils and dampers opaque.
     for(const m of [...shells,...windows]) {
       if(!m.userData.ownMaterial){m.material=m.material.clone();m.userData.ownMaterial=true;}
@@ -171,7 +186,7 @@ export function makeCar(scene) {
     if(!hit)return null;
     const index=wheelIndex(hit.object);if(index!==-1)return{kind:'wheel',index};
     const anchor=body.worldToLocal(hit.point.clone());
-    return{kind:'body',index:bodyZone(anchor),anchor};
+    return{kind:'body',index:bodyZone(currentSetup?new THREE.Vector3(anchor.x*1.78/currentSetup.width,anchor.y,anchor.z*2.72/currentSetup.wheelbase):anchor),anchor};
   }
   function highlight(target){
     highlightBox.visible=target?.kind==='body';
@@ -180,6 +195,7 @@ export function makeCar(scene) {
     const i=target.index,front=i===0||i===1||i===4,centre=i===5,end=i===4||i===6;
     highlightBox.position.set(centre||end?0:(i%2===0?.66:-.66),centre?.39:.04,centre?-.025:front?1.47:-1.5);
     highlightBox.scale.set(centre?1.85:end?.8:1.05,centre?1.36:.67,centre?1.55:1.46);
+    if(currentSetup){highlightBox.position.x*=currentSetup.width/1.78;highlightBox.position.z*=currentSetup.wheelbase/2.72;highlightBox.scale.x*=currentSetup.width/1.78;highlightBox.scale.z*=currentSetup.wheelbase/2.72;}
   }
   return {body,update,cutaway,pick,highlight};
 }
