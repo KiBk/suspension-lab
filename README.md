@@ -220,6 +220,58 @@ Attribution, licence links and an adaptation notice appear in How it works and
 `assets/cars/LICENSE.txt`. Original asset source:
 https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5
 
+## Elastic chassis
+
+Every imported car has front, centre and rear physical chassis sections joined by
+translationally constrained, angular spring-and-damper joints. Front/rear suspension
+mounts, dampers, anti-roll reactions and travel stops act on their supporting
+sections. Springs and tyres therefore load the elastic structure in both directions.
+Mass, centre of mass and aggregate box inertia are preserved by subdivision.
+
+`src/chassis-flex.js` specifies representative whole-structure stiffness in Nm/degree:
+
+| Setup | Torsion | Bending |
+| --- | ---: | ---: |
+| City compact | 11,000 | 30,000 |
+| Hatchback | 15,500 | 40,000 |
+| Electric sedan | 28,000 | 65,000 |
+| Family wagon | 21,000 | 48,000 |
+| Coupe | 27,000 | 62,000 |
+| Sports car | 32,000 | 75,000 |
+| Minivan | 14,000 | 42,000 |
+| SUV | 24,000 | 55,000 |
+| Pickup | 5,500 | 21,000 |
+| Off-road 4×4 | 7,500 | 25,000 |
+
+The bending column describes vertical bending; in-plane bending uses 1.3 times
+that stiffness. Two joints in series each use twice the whole-structure stiffness,
+converted to Nm/rad. Rapier force-based implicit angular motors supply restoring torque and
+12% nominal critical damping. The installed 0.20 runtime exposes these angular
+motor setters through `world.impulseJoints.raw`, even though its declaration file
+also lists them on spherical-joint wrappers. Per-joint limits of ±0.055 rad in
+twist and ±0.025 rad in bending bound this elastic approximation under extreme
+grabs. These are numerical demonstration limits, not material failure criteria.
+
+A deformation field follows the physical frames across cloned body meshes and
+subdivided frame rails. The pickup cab/bonnet stays comparatively rigid with its
+centre section, and its bed follows the rear; this represents body mounting in a
+reduced form without separate bushing bodies. Original cached assets are unchanged.
+Visible vertex positions and normals update together, so shadows and triangle
+picking follow the current shape. Structural mounting plates follow their section;
+wheel and linkage poses still come directly from physics.
+
+The small TWIST readout is the front-to-rear relative longitudinal rotation. Motion
+is shown at actual scale: try Pickup, Cutaway, quarter speed and a diagonal wheel
+lift. This is reversible elasticity, not crash damage or a finite-element stress
+analysis. The fictional meshes contain no thickness, material, weld or stiffness
+data. Source concepts: [Rapier joints](https://rapier.rs/docs/user_guides/javascript/joints/)
+and [flexible bodies in suspension analysis](https://2025.help.altair.com/2025/hwdesktop/hwx/topics/motionview/mdl_suspension_design_process_r.htm).
+
+Tests apply known opposing torques, verify the specified twist/bending and elastic
+recovery, check mass/inertia and momentum, exercise rotated frames and diagonal
+lifts, and check the deformed picking surfaces and wheel clearance. Existing drop,
+high-speed, moving-grab, terrain and sound regressions remain in the suite.
+
 ## Physics, terrain and sound
 
 Rapier rigid bodies and joints run at 240 Hz. Springs/dampers apply equal and

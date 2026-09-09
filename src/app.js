@@ -201,6 +201,7 @@ function telemetry(){
   const slipping=state.tyres.some(t=>t.usage>.97);$('grip-state').textContent=slipping?'SLIDING':'GRIP';$('grip-state').classList.toggle('sliding',slipping);
   $('motion-label').textContent=sim.driving?`${Math.round(sim.groundSpeed*3.6)} km/h · ${Math.abs(sim.lateralG).toFixed(2)} g`:'ARROW KEYS TO DRIVE';
   $('pitch-value').textContent=`${THREE.MathUtils.radToDeg(sim.pitch).toFixed(1)}°`;$('roll-value').textContent=`${THREE.MathUtils.radToDeg(sim.roll).toFixed(1)}°`;
+  $('twist-value').textContent=`${Math.abs(THREE.MathUtils.radToDeg(state.flex?.twist??0)).toFixed(2)}°`;
 }
 
 let fault=false;

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CORNERS } from './physics.js';
 import { buildBodywork } from './bodywork.js';
 import {instantiateVehicle,activateVehicleAsset} from './car-assets.js';
+import {FlexVisual} from './flex-visual.js';
 import {mechanicalDetail} from './mechanical-detail.js';
 
 // Body-local zones stay attached to the car at any heading or camera angle.
@@ -14,7 +15,7 @@ export function bodyZone(p){
 
 export function makeCar(scene) {
   const body = new THREE.Group(); scene.add(body);
-  let shells = [], windows = [], bodywork=new THREE.Group(), currentWorld=null, currentSetup=null, faded=false; body.add(bodywork);
+  let shells = [], windows = [], bodywork=new THREE.Group(), currentWorld=null, currentSetup=null, currentSim=null, flexVisual=null, faded=false; body.add(bodywork);
   const material = (color, metalness = 0, roughness = .45) => new THREE.MeshStandardMaterial({ color, metalness, roughness });
   const paint = material('#a9bbb0', .45, .27), dark = material('#43574c', .12, .58);
   const glass = material('#283e3c', .55, .14), rubber = material('#242925', .0, .92);
@@ -139,16 +140,17 @@ export function makeCar(scene) {
   }
   function update(sim){
     if(currentWorld!==sim.world){
-      currentWorld=sim.world;currentSetup=sim.setup;
+      currentWorld=sim.world;currentSetup=sim.setup;currentSim=sim;flexVisual=null;
       springs.forEach(s=>{s.barrelLength=null;});
       bodywork.traverse(m=>{if(!m.userData.assetGeometry)m.geometry?.dispose();if(m.userData.ownMaterial)m.material.dispose();});
       bodywork.userData.paint?.dispose();body.remove(bodywork);shells=[];windows=[];
       if(sim.setup){const built=sim.setup.model?instantiateVehicle(sim.setupId,sim.restHeight,sim.setup):buildBodywork(sim.setup,sim.restHeight,{dark,glass,metal,orange,black,light,red});
         if(built.wheels){rotors.forEach((rotor,i)=>{rotor.traverse(m=>{if(!m.userData.assetGeometry)m.geometry?.dispose();if(m.userData.ownMaterial)m.material?.dispose();});rotor.clear();rotor.add(built.wheels[i]);for(const m of wheels[i].children)if(m!==rotor&&m!==wheelHighlights[i])m.visible=false;wheelHighlights[i].scale.setScalar(sim.wheelParts[i].radius/.35);});activateVehicleAsset(sim.setupId);} bodywork=built.group;shells=built.shells;windows=built.windows;bodywork.userData.paint=built.paint;body.add(bodywork);}
       else{bodywork=new THREE.Group();body.add(bodywork);buildLegacy();}
+      if(sim.structure)flexVisual=new FlexVisual(bodywork,body,sim);
       cutaway(faded);
     }
-    const frame=sim.frame();body.position.copy(frame.position);body.quaternion.copy(frame.rotation);body.updateMatrixWorld(true);
+    const frame=sim.frame();body.position.copy(frame.position);body.quaternion.copy(frame.rotation);body.updateMatrixWorld(true);flexVisual?.update(frame);
     wheels.forEach((wheel,i)=>{wheel.position.copy(frame.wheels[i].position);wheel.quaternion.copy(frame.wheels[i].rotation);wheel.scale.setScalar(sim.setup?.model?1:frame.wheels[i].radius/.35);rotors[i].rotation.x=frame.wheels[i].spin;});
     physicalLinks.forEach((m,i)=>{
       const link=frame.links[i];m.visible=!!link&&link.kind!=='leaf-guide';if(!m.visible)return;
@@ -198,17 +200,18 @@ export function makeCar(scene) {
     const hit=opaque&&wheelIndex(opaque.object)!==-1?opaque:hits[0];
     if(!hit)return null;
     const index=wheelIndex(hit.object);if(index!==-1)return{kind:'wheel',index};
-    const anchor=body.worldToLocal(hit.point.clone());
+    const anchor=currentSim.bodyAnchor(hit.point);
     return{kind:'body',index:bodyZone(currentSetup?new THREE.Vector3(anchor.x*1.78/currentSetup.width,anchor.y,anchor.z*2.72/currentSetup.wheelbase):anchor),anchor};
   }
   function highlight(target){
-    highlightBox.visible=target?.kind==='body';
+    highlightBox.visible=target?.kind==='body';highlightBox.quaternion.identity();
     wheelHighlights.forEach((m,i)=>m.visible=target?.kind==='wheel'&&target.index===i);
     if(!highlightBox.visible)return;
     const i=target.index,front=i===0||i===1||i===4,centre=i===5,end=i===4||i===6;
     highlightBox.position.set(centre||end?0:(i%2===0?.66:-.66),centre?.39:.04,centre?-.025:front?1.47:-1.5);
     highlightBox.scale.set(centre?1.85:end?.8:1.05,centre?1.36:.67,centre?1.55:1.46);
     if(currentSetup){highlightBox.position.x*=currentSetup.width/1.78;highlightBox.position.z*=currentSetup.wheelbase/2.72;highlightBox.scale.x*=currentSetup.width/1.78;highlightBox.scale.z*=currentSetup.wheelbase/2.72;}
+    if(currentSim?.structure&&!centre){const segment=currentSim.structure.bodyAt(highlightBox.position.z);highlightBox.position.copy(body.worldToLocal(currentSim.point(highlightBox.position)));highlightBox.quaternion.copy(body.quaternion).invert().multiply(new THREE.Quaternion().copy(segment.rotation()));}
   }
   return {body,update,cutaway,pick,highlight};
 }

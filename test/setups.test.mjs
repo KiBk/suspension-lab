@@ -5,7 +5,7 @@ import {Suspension} from '../src/physics.js';
 import {SETUPS,SETUP_ORDER,cycleSetup} from '../src/setups.js';
 import {makeCar} from '../src/model.js';
 import {registerTestAssets} from './car-assets-helper.mjs';
-const relative=(s,w)=>new Vector3().copy(s.frame().wheels[w].position).sub(s.chassis.translation()).applyQuaternion(new Quaternion().copy(s.chassis.rotation()).invert());
+const relative=(s,w)=>new Vector3().copy(s.frame().wheels[w].position).sub(s.wheelParts[w].chassis.translation()).applyQuaternion(new Quaternion().copy(s.wheelParts[w].chassis.rotation()).invert());
 
 test('available setups have their specified mass, wheelbase and mechanisms',()=>{
   assert.equal(SETUP_ORDER.length,10);assert.ok(!SETUP_ORDER.includes('baja'));assert.equal(cycleSetup('compact',-1),'offroad');assert.equal(cycleSetup('offroad',1),'compact');

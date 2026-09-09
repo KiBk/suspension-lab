@@ -3,6 +3,7 @@ import { Vector3, Quaternion } from 'three';
 import { tyreStep, rollingResistance, SURFACES } from './tyres.js';
 import { SETUPS } from './setups.js';
 import { Drivetrain } from './drivetrain.js';
+import { ElasticChassis } from './chassis-flex.js';
 import { suspensionMount } from './suspension-mounts.js';
 import { Road, TERRAINS } from './terrain.js';
 await RAPIER.init();
@@ -38,7 +39,7 @@ export class Suspension {
     this.driving=false;this.input={throttle:0,steer:0};this.steering=0;this.roadSpeed=0;this.lateralG=0;this.rebasedPatches=null;this.worldOrigin={x:0,z:0};
     this.road?.events?.free();this.world?.free();this.world=new RAPIER.World({x:0,y:-9.81,z:0});this.world.timestep=STEP;
     this.world.numSolverIterations=16;this.world.numInternalPgsIterations=2;
-    this.dynamic=[];this.links=[];this.leaves=[];this.jointChecks=[];this.springs=[];this.wheelParts=[];this.beams=[];this.drag=null;this.time=0;this.spin=0;this.solverBoostUntil=0;
+    this.structure=null;this.assembling=true;this.dynamic=[];this.links=[];this.leaves=[];this.jointChecks=[];this.springs=[];this.wheelParts=[];this.beams=[];this.drag=null;this.time=0;this.spin=0;this.solverBoostUntil=0;
     const cfg=this.setup=SETUPS[this.setupId]??null,baja=this.type==='baja';
     this.drivetrain=cfg?new Drivetrain(cfg.powertrain,cfg.drive.reduce((r,i)=>r+cfg.wheels[i].radius,0)/cfg.drive.length):null;
     this.radius=cfg?.radius??(baja?.39:.35);this.rideHeight=cfg?.ride??(baja?1.18:.91);this.wheelbase=cfg?.wheelbase??2.72;
@@ -50,10 +51,12 @@ export class Suspension {
     // wheels and injecting energy even though its top looked perfectly flat.
     this.road=new Road(this.world,'flat',this.worldOrigin);this.ground=this.road.plane;
     this.chassis=this.body(V(0,this.rideHeight,0),0,V(.8,.2,2));
-    this.floorCollider=this.world.createCollider(RAPIER.ColliderDesc.cuboid(cfg?cfg.width*.44:.80,.18,cfg?cfg.length*.47:2.03).setTranslation(0,cfg?cfg.clearance-cfg.ride+.18:-.08,0).setMass(0).setCollisionGroups(VEHICLE_GROUP),this.chassis);
-    this.roofCollider=this.world.createCollider(RAPIER.ColliderDesc.cuboid(cfg?cfg.width*.35:.65,cfg?cfg.roof*.32:.34,cfg?cfg.wheelbase*.27:.72).setTranslation(0,cfg?cfg.geometry.height+cfg.lift-cfg.ride-cfg.roof*.32:.56,-.15).setMass(0).setCollisionGroups(VEHICLE_GROUP),this.chassis);
-    const inertia=cfg?{x:this.bodyMass*(cfg.length**2+cfg.roof**2)/12,y:this.bodyMass*(cfg.length**2+cfg.width**2)/12,z:this.bodyMass*(cfg.width**2+cfg.roof**2)/12}:{x:1850,y:2000,z:680};
-    this.chassis.setAdditionalMassProperties(this.bodyMass,ZERO,inertia,{x:0,y:0,z:0,w:1},true);
+    if(cfg)this.structure=new ElasticChassis(this);
+    else{
+      this.floorCollider=this.world.createCollider(RAPIER.ColliderDesc.cuboid(.80,.18,2.03).setTranslation(0,-.08,0).setMass(0).setCollisionGroups(VEHICLE_GROUP),this.chassis);
+      this.roofCollider=this.world.createCollider(RAPIER.ColliderDesc.cuboid(.65,.34,.72).setTranslation(0,.56,-.15).setMass(0).setCollisionGroups(VEHICLE_GROUP),this.chassis);
+      this.chassis.setAdditionalMassProperties(this.bodyMass,ZERO,{x:1850,y:2000,z:680},{x:0,y:0,z:0,w:1},true);
+    }
     for(let axle=0;axle<2;axle++){
       const layout=cfg?(axle===0?cfg.front:cfg.rear):this.type==='solid'||(baja&&axle===1)?'solid':this.type==='macpherson'?'macpherson':'wishbone';
       if(cfg)this.makeModelAxle(axle,layout);
@@ -61,18 +64,19 @@ export class Suspension {
       else for(let side=0;side<2;side++)layout==='torsion'?this.makeTrailingWheel(axle*2+side):this.makeIndependent(axle*2+side,baja,layout);
     }
     if(cfg){
-      const previous=this.bodyMass;this.bodyMass=cfg.mass-this.dynamic.filter(b=>b!==this.chassis).reduce((n,b)=>n+b.mass(),0);
-      for(const key of ['x','y','z'])inertia[key]*=this.bodyMass/previous;
-      this.chassis.setAdditionalMassProperties(this.bodyMass,ZERO,inertia,{x:0,y:0,z:0,w:1},true);
+      const previous=this.bodyMass;this.bodyMass=cfg.mass-this.dynamic.filter(b=>!this.structure.bodies.includes(b)).reduce((n,b)=>n+b.mass(),0);
+      this.structure.setMass(this.bodyMass);
       for(const spring of this.springs)spring.rest+=(this.bodyMass-previous)*9.81/4/spring.ratio/spring.k;
     }
+    this.assembling=false;
+    this.wheelParts.forEach((w,i)=>w.chassis=this.structure?.bodyAt(this.corners[i].z)??this.chassis);
     this.tyres=this.wheelParts.map(()=>({omega:0,slip:0,spin:0,load:0,force:V(),usage:0,steer:0}));
     // Begin at rest under actual gravity and spring forces, then keep that rest pose.
     for(let i=0;i<720;i++)this.step(STEP,false);
     this.time=0;this.spin=0;this.roadSpeed=0;this.lateralG=0;this.dynamic.forEach(b=>{b.setLinvel(ZERO,true);b.setAngvel(ZERO,true);});
     for(const t of this.tyres){t.omega=0;t.spin=0;t.slip=0;t.force.set(0,0,0);t.usage=0;}
     this.refresh();this.restHeight=this.y;this.totalMass=this.dynamic.reduce((s,b)=>s+b.mass(),0);
-    if(cfg){this.configureTravel();for(const collider of [this.floorCollider,this.roofCollider]){const p=collider.translationWrtParent();collider.setTranslationWrtParent({x:p.x,y:p.y+cfg.ride-this.restHeight,z:p.z});}}
+    if(cfg){this.configureTravel();for(const collider of this.structure.colliders){const p=collider.translationWrtParent();collider.setTranslationWrtParent({x:p.x,y:p.y+cfg.ride-this.restHeight,z:p.z});}}
     if(this.terrainType!=='flat'){this.road.free();this.road=new Road(this.world,this.terrainType,this.worldOrigin);this.ground=null;}
   }
   body(position,mass,halfSize=V(.12,.12,.12)){
@@ -80,7 +84,9 @@ export class Suspension {
     this.world.createCollider(RAPIER.ColliderDesc.cuboid(halfSize.x,halfSize.y,halfSize.z).setMass(mass).setCollisionGroups(0),b);
     this.dynamic.push(b);return b;
   }
+  mountBody(body,anchor){return body===this.chassis&&this.structure?this.structure.bodyAt(anchor.z):body;}
   joint(data,a,b,check=true){
+    if(this.assembling){a=this.mountBody(a,data.anchor1);b=this.mountBody(b,data.anchor2);}
     const j=this.world.createImpulseJoint(data,a,b,true);j.setContactsEnabled(false);
     if(check)this.jointChecks.push({a,b,p:data.anchor1,q:data.anchor2});return j;
   }
@@ -94,6 +100,7 @@ export class Suspension {
     return rod;
   }
   spring(a,anchorA,b,anchorB,index,preload,minLength,droop,bypass=false,lever=null){
+    a=this.mountBody(a,anchorA);b=this.mountBody(b,anchorB);
     const length=at(a,anchorA).distanceTo(at(b,anchorB)),tune=TYPES[this.type];
     const cfg=this.setup,axle=index<2?0:1,layout=cfg?(axle===0?cfg.front:cfg.rear):null;
     const inclination=at(a,anchorA).sub(at(b,anchorB)).normalize().y;
@@ -106,9 +113,9 @@ export class Suspension {
     return s;
   }
   separateDamper(s,b,anchorB,anchorA,lever=1){
-    const axis=at(this.chassis,anchorA).sub(at(b,anchorB)).normalize();
+    const a=this.mountBody(this.chassis,anchorA),axis=at(a,anchorA).sub(at(b,anchorB)).normalize();
     const ratio=Math.max(.3,lever*axis.y);
-    s.damper={a:this.chassis,b,anchorA,anchorB,c:this.setup.damping[s.index<2?0:1]/ratio**2,ratio};
+    s.damper={a,b,anchorA,anchorB,c:this.setup.damping[s.index<2?0:1]/ratio**2,ratio};
     s.c=0;
   }
   wheelCollider(body,position,radius=this.radius,width=.27){
@@ -266,23 +273,22 @@ export class Suspension {
   }
   configureTravel(){
     for(const s of this.springs){
-      const w=this.wheelParts[s.index],hub=at(w.body,w.local),centre=local(this.chassis,hub),length=at(s.a,s.anchorA).distanceTo(at(s.b,s.anchorB));
+      const w=this.wheelParts[s.index],hub=at(w.body,w.local),centre=local(w.chassis,hub),length=at(s.a,s.anchorA).distanceTo(at(s.b,s.anchorB));
       const axle=s.index<2?0:1;s.bump=this.setup.travel.bump[axle];s.droop=this.setup.travel.droop[axle];
       s.staticLength=length;s.min=Math.max(.08,length-s.bump*s.ratio);s.max=length+s.droop*s.ratio;
       this.world.removeImpulseJoint(s.rope,true);s.rope=this.joint(RAPIER.JointData.rope(s.max,s.anchorA,s.anchorB),s.a,s.b,false);
-      const stop=this.joint(RAPIER.JointData.generic(centre,w.local,V(0,1,0),0),this.chassis,w.body,false);
+      const stop=this.joint(RAPIER.JointData.generic(centre,w.local,V(0,1,0),0),w.chassis,w.body,false);
       this.world.impulseJoints.raw.jointSetLimits(stop.handle,RAPIER.JointAxis.LinX,-s.droop,s.bump);
       s.travelCentre=centre;
     }
   }
   antiRoll(){
     if(!this.setup||this.springs.some(s=>s.staticLength===undefined))return;
-    const up=V(0,1,0).applyQuaternion(Q(this.chassis.rotation()));
     for(let axle=0;axle<2;axle++){
       const pair=[axle*2,axle*2+1].map(i=>this.springs.find(s=>s.index===i));
       const difference=(pair[0].staticLength-pair[0].length)/pair[0].ratio-(pair[1].staticLength-pair[1].length)/pair[1].ratio;
       const force=clamp(difference*this.setup.bar[axle],-12000,12000);
-      pair.forEach((s,j)=>{const w=this.wheelParts[s.index],p=at(w.body,w.local),f=up.clone().multiplyScalar((j===0?-1:1)*force);w.body.addForceAtPoint(f,p,true);this.chassis.addForceAtPoint(f.clone().negate(),p,true);});
+      pair.forEach((s,j)=>{const w=this.wheelParts[s.index],p=at(w.body,w.local),up=V(0,1,0).applyQuaternion(Q(w.chassis.rotation())),f=up.clone().multiplyScalar((j===0?-1:1)*force);w.body.addForceAtPoint(f,p,true);w.chassis.addForceAtPoint(f.clone().negate(),p,true);});
     }
   }
   setSetup(id){if(!SETUPS[id])throw new RangeError('Unknown vehicle setup');this.setupId=id;this.type=id==='baja'?'baja':id==='pickup'?'solid':SETUPS[id].front;this.reset();}
@@ -363,14 +369,16 @@ export class Suspension {
     this.lateralG=lateralForce/((this.totalMass||1500)*9.81);
   }
   setType(type){if(!TYPES[type])throw new RangeError('Unknown suspension design');this.setupId=null;this.type=type;this.reset();}
-  point(p){return at(this.chassis,{x:p.x,y:p.y??0,z:p.z});}
+  point(p){const anchor={x:p.x,y:p.y??0,z:p.z};return this.structure?this.structure.point(anchor):at(this.chassis,anchor);}
+  bodyAnchor(world){return this.structure?this.structure.anchor(world):local(this.chassis,world);}
   pullAnchor(i){const p=PULL_POINTS[i];return this.setup?V(p.x*this.setup.width/1.78,i===5?this.setup.roof:p.y,p.z*this.wheelbase/2.72):V(p.x,p.y,p.z);}
   pullPoint(i){return this.point(this.pullAnchor(i));}
   beginDrag(i,target=this.pullPoint(i).y){
-    this.beginGrip(this.chassis,this.pullAnchor(i),PULL_POINTS[i].grip==='level',target,{kind:'body',i});
+    this.beginGrip(this.mountBody(this.chassis,this.pullAnchor(i)),this.pullAnchor(i),PULL_POINTS[i].grip==='level',target,{kind:'body',i});
   }
   beginBodyDrag(anchor,level=false){
-    this.beginGrip(this.chassis,anchor,level,this.point(anchor).y,{kind:'body'});
+    const selected=this.mountBody(this.chassis,anchor),world=at(selected,anchor),body=level?this.chassis:selected;
+    this.beginGrip(body,local(body,world),level,world.y,{kind:'body'});
   }
   beginWheelDrag(i,target=at(this.wheelParts[i].body,this.wheelParts[i].local).y){
     const w=this.wheelParts[i];
@@ -471,18 +479,18 @@ export class Suspension {
     this.wheels=this.wheelParts.map((w,i)=>{const p=at(w.body,w.local),s=this.springs.find(s=>s.index===i),length=at(s.a,s.anchorA).distanceTo(at(s.b,s.anchorB));let contact=false;
       if(this.road.events)contact=(this.road.states.get(w.collider.handle)?.load??0)>0;
       else this.road.contacts(w.collider,m=>{if(m.numSolverContacts()>0)contact=true;});
-      return{y:p.y,v:w.body.linvel().y,contact,force:s.force,compression:this.setup&&s.travelCentre?local(this.chassis,p).y-s.travelCentre.y+s.droop:s.rest-length};});
+      return{y:p.y,v:w.body.linvel().y,contact,force:s.force,compression:this.setup&&s.travelCentre?local(w.chassis,p).y-s.travelCentre.y+s.droop:s.rest-length};});
   }
   frame(){
-    return {position:this.chassis.translation(),rotation:this.chassis.rotation(),spin:this.spin,
+    return {position:this.chassis.translation(),rotation:this.chassis.rotation(),spin:this.spin,structure:this.structure?.frame()??null,flex:this.structure?.state()??null,
       wheels:this.wheelParts.map((w,i)=>({position:at(w.body,w.local),rotation:Q(w.body.rotation()).multiply(new Quaternion().setFromAxisAngle(V(0,1,0),this.driving?this.tyres[i].steer:0)),radius:w.radius,spin:this.tyres?.[i]?.spin??0})),
       links:this.links.map(l=>({a:at(l.body,l.a),b:at(l.body,l.b),kind:l.kind})),
       springs:[...this.springs].sort((a,b)=>a.index-b.index).map(s=>({top:at(s.a,s.anchorA),bottom:at(s.b,s.anchorB),damperTop:s.damper?at(s.damper.a,s.damper.anchorA):at(s.a,s.anchorA),damperBottom:s.damper?at(s.damper.b,s.damper.anchorB):at(s.b,s.anchorB),separate:!!s.damper,bypass:s.bypass,index:s.index,leaf:s.leaf??false})),
-      leaves:this.leaves.map(l=>({front:at(this.chassis,l.front),seat:at(l.body,l.seat),rear:at(l.shackle,l.rear),hanger:at(this.chassis,l.hanger)})),
+      leaves:this.leaves.map(l=>({front:this.point(l.front),seat:at(l.body,l.seat),rear:at(l.shackle,l.rear),hanger:this.point(l.hanger)})),
       torsion:this.torsionArms.map(a=>at(a.body,a.point)),
       beams:this.beams.map(b=>({a:at(b.body,V(b.half,0,0)),b:at(b.body,V(-b.half,0,0)),rotation:b.body.rotation()}))};
   }
   constraintError(){let error=0;for(const j of this.jointChecks)error=Math.max(error,at(j.a,j.p).distanceTo(at(j.b,j.q)));return error;}
-  snapshot(){return{powertrain:this.drivetrain?.snapshot()??null,setup:this.setupId,terrain:this.terrainType,type:this.type,surface:this.surface,x:this.x,y:this.y,z:this.z,pitch:this.pitch,roll:this.roll,velocity:this.vy,dragging:this.drag?.i??(this.drag?'body':null),gripKind:this.drag?.kind??null,driving:this.driving,speed:this.groundSpeed,longitudinalSpeed:this.roadSpeed,steering:this.steering,lateralG:this.lateralG,tyres:this.tyres?.map(t=>({load:t.load,usage:t.usage,slip:t.slip,force:t.force.toArray(),omega:t.omega}))??[],wheels:this.wheels.map(w=>({...w})),constraintError:this.constraintError()};}
+  snapshot(){return{flex:this.structure?.state()??null,powertrain:this.drivetrain?.snapshot()??null,setup:this.setupId,terrain:this.terrainType,type:this.type,surface:this.surface,x:this.x,y:this.y,z:this.z,pitch:this.pitch,roll:this.roll,velocity:this.vy,dragging:this.drag?.i??(this.drag?'body':null),gripKind:this.drag?.kind??null,driving:this.driving,speed:this.groundSpeed,longitudinalSpeed:this.roadSpeed,steering:this.steering,lateralG:this.lateralG,tyres:this.tyres?.map(t=>({load:t.load,usage:t.usage,slip:t.slip,force:t.force.toArray(),omega:t.omega}))??[],wheels:this.wheels.map(w=>({...w})),constraintError:this.constraintError()};}
   free(){this.road.events?.free();this.world.free();}
 }

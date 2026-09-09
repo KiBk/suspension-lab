@@ -1,18 +1,24 @@
 import * as T from 'three';
+import {FlexVisual} from './flex-visual.js';
 const v=p=>new T.Vector3(p.x,p.y,p.z),up=new T.Vector3(0,1,0);
 // All links, spring seats and leaf endpoints are drawn from simulation anchors.
 export function mechanicalDetail(scene,body){
  const group=new T.Group();scene.add(group);const chassis=new T.Group();body.add(chassis);
  const steel=new T.MeshStandardMaterial({color:'#657c6d',metalness:.2,roughness:.58,envMapIntensity:.45}),aluminium=new T.MeshStandardMaterial({color:'#c5cdc7',metalness:.65,roughness:.36,envMapIntensity:.65}),rubber=new T.MeshStandardMaterial({color:'#303a33',roughness:.91}),accent=new T.MeshStandardMaterial({color:'#68988f',metalness:.3,roughness:.4,envMapIntensity:.5});
- const cylinder=new T.CylinderGeometry(1,1,1,12),sphere=new T.SphereGeometry(1,10,8),box=new T.BoxGeometry(1,1,1);let pool=[],cursor=0,current=null;
+ const cylinder=new T.CylinderGeometry(1,1,1,12),sphere=new T.SphereGeometry(1,10,8),box=new T.BoxGeometry(1,1,1);let pool=[],cursor=0,current=null,flexVisual=null;
  function item(geo,mat,parent=group){let m;if(parent===group){m=pool[cursor++];if(!m){m=new T.Mesh();pool.push(m);group.add(m);}m.visible=true;m.geometry=geo;m.material=mat;}else{m=new T.Mesh(geo,mat);parent.add(m);}m.castShadow=m.receiveShadow=true;return m;}
  function rod(a,b,r=.018,mat=aluminium,parent=group){const m=item(cylinder,mat,parent),d=v(b).sub(a);m.position.copy(a).add(b).multiplyScalar(.5);m.quaternion.setFromUnitVectors(up,d.clone().normalize());m.scale.set(r,Math.max(.001,d.length()),r);return m;}
  function ball(p,r=.033,mat=rubber){const m=item(sphere,mat);m.position.copy(p);m.quaternion.identity();m.scale.setScalar(r);}
  function block(size,p,mat=steel,parent=chassis){const m=item(box,mat,parent);m.position.copy(p);m.scale.copy(size);return m;}
  const vec=(x,y,z)=>new T.Vector3(x,y,z);
- function rebuild(sim){chassis.traverse(m=>{if(m.userData.ownGeometry)m.geometry?.dispose();});chassis.clear();const c=sim.setup;if(!c)return;const utility=['pickup','offroad'].includes(c.id),floor=(utility?c.radius+.10:c.clearance+.075)-sim.restHeight,rail=c.track*.66;
+ function rebuild(sim){flexVisual=null;chassis.traverse(m=>{if(m.userData.ownGeometry)m.geometry?.dispose();});chassis.clear();const c=sim.setup;if(!c)return;const utility=['pickup','offroad'].includes(c.id),floor=(utility?c.radius+.10:c.clearance+.075)-sim.restHeight,rail=c.track*.66;
   // Compact stamped subframes on road cars; longitudinal rails on utility cars.
-  for(const side of [-1,1])block(vec(.065,.075,c.wheelbase+.45),vec(side*rail,floor,0));
+  for(const side of [-1,1]){
+   // Subdivided rails expose a continuous bend in cutaway, rather than a long
+   // two-end box whose vertices can only draw a straight chord.
+   const geometry=new T.BoxGeometry(.065,.075,c.wheelbase+.45,1,1,24),railMesh=new T.Mesh(geometry,steel);
+   railMesh.userData.ownGeometry=true;railMesh.position.set(side*rail,floor,0);railMesh.castShadow=railMesh.receiveShadow=true;chassis.add(railMesh);
+  }
   for(let axle=0;axle<2;axle++){const i=axle*2,z=sim.corners[i].z,r=c.wheels[i].radius,low=r-sim.restHeight-Math.min(.14,r*.42)+.015;
    block(vec(c.track*1.10,.065,.12),vec(0,low,z-.19));block(vec(c.track*1.10,.065,.10),vec(0,low,z+.19));
    for(const side of [-1,1])rod(vec(side*c.track*.55,low,z),vec(side*rail,floor,z),.032,steel,chassis);
@@ -37,8 +43,9 @@ export function mechanicalDetail(scene,body){
    // Frame-mounted bump rubber for leaf axles; no fictitious coil top mount.
    if(layout==='leaf')block(vec(.08,.085,.10),vec(s.anchorA.x,floor-.07,s.anchorA.z),rubber);
   }
+  if(sim.structure)flexVisual=new FlexVisual(chassis,body,sim,{structure:true});
  }
- function update(sim,frame){cursor=0;if(current!==sim.world){current=sim.world;rebuild(sim);}if(!sim.setup){chassis.visible=group.visible=false;return;}chassis.visible=group.visible=true;const c=sim.setup,toWorld=p=>sim.point(p);
+ function update(sim,frame){cursor=0;if(current!==sim.world){current=sim.world;rebuild(sim);}if(!sim.setup){chassis.visible=group.visible=false;return;}chassis.visible=group.visible=true;flexVisual?.update(frame);const c=sim.setup,toWorld=p=>sim.point(p);
   for(const link of frame.links){if(link.kind==='mount'||link.kind==='leaf-guide')continue;ball(link.a,.027);ball(link.b,.031);}
   for(let i=0;i<4;i++){
    const w=frame.wheels[i],sign=i%2===0?1:-1,r=w.radius,pos=v(w.position),q=new T.Quaternion().copy(w.rotation),axle=vec(1,0,0).applyQuaternion(q),forward=vec(0,0,1).applyQuaternion(q),inside=pos.clone().addScaledVector(axle,-sign*c.wheels[i].width*.35);
