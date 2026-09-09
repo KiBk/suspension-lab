@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Suspension, CORNERS, PULL_POINTS, STEP } from './physics.js';
 import { makeCar } from './model.js';
 import {loadVehicleAsset} from './car-assets.js';
@@ -21,6 +22,11 @@ renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
 viewport.appendChild(renderer.domElement);renderer.domElement.setAttribute('aria-label','3D car with simulated spring and damper suspension');
 const scene=new THREE.Scene();scene.fog=new THREE.Fog('#f0f0e8',17,35);
+// Broad studio reflections reveal paint contours and machined wheel details
+// at every orbit angle, including the side facing away from the key light.
+const studio=new RoomEnvironment(),pmrem=new THREE.PMREMGenerator(renderer);
+const studioMap=pmrem.fromScene(studio,.06);scene.environment=studioMap.texture;
+studio.dispose();pmrem.dispose();
 const camera=new THREE.PerspectiveCamera(35,1,.1,60);
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true;controls.dampingFactor=.07;controls.enablePan=false;
@@ -32,10 +38,10 @@ function resetCamera(){
   controls.target.copy(target);camera.position.copy(target).addScaledVector(direction,sim.setup.length*1.75+1.2);cameraSetup=sim.setupId;controls.update();
 }
 resetCamera();
-scene.add(new THREE.HemisphereLight('#fffef0','#809477',3));
-const key=new THREE.DirectionalLight('#fff4e3',4.8);key.position.set(4,9,5);key.castShadow=true;
+scene.add(new THREE.HemisphereLight('#fffef6','#b2b9b5',2.3));
+const key=new THREE.DirectionalLight('#fff8ef',3.0);key.position.set(4,9,5);key.castShadow=true;
 key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-6,right:6,top:6,bottom:-6,near:.5,far:20});key.shadow.normalBias=.025;key.shadow.bias=-.0002;scene.add(key,key.target);
-const fill=new THREE.DirectionalLight('#e8f1ff',2);fill.position.set(-5,4,-3);scene.add(fill);
+const fill=new THREE.DirectionalLight('#edf3ff',2.2);fill.position.set(-5,4,-3);scene.add(fill);
 const floor=new THREE.Mesh(new THREE.PlaneGeometry(180,180),new THREE.MeshStandardMaterial({color:'#edeee5',roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=-.035;floor.receiveShadow=true;scene.add(floor);
 const roadView=makeRoadView(scene,renderer),turntable=roadView.group;
 try{await loadVehicleAsset(sim.setupId);}catch(error){$('loading').textContent='The car model could not load. Reload to try again.';throw error;}
@@ -144,7 +150,8 @@ function setupUI(){
   const cfg=SETUPS[sim.setupId];if(cameraSetup!==sim.setupId)resetCamera();
   $('design-kind').textContent=cfg.tag;$('design-name').textContent=cfg.name;$('design-description').textContent=cfg.description;
   $('setup-name').textContent=cfg.name;$('setup-index').textContent=`${SETUP_ORDER.indexOf(sim.setupId)+1} / ${SETUP_ORDER.length}`;
-  $('setup-specs').textContent=`${Math.round(sim.totalMass).toLocaleString('en-US')} kg · ${Math.round((cfg.bump+cfg.droop)*1000)} mm travel · ${cfg.drive.length===4?'AWD':cfg.drive[0]===0?'FWD':'RWD'}`;
+  const travel=cfg.travel.bump.map((b,i)=>Math.round((b+cfg.travel.droop[i])*1000));
+  $('setup-specs').textContent=`${Math.round(sim.totalMass).toLocaleString('en-US')} kg · ${travel.join(' / ')} mm F/R travel · ${cfg.drive.length===4?'AWD':cfg.drive[0]===0?'FWD':'RWD'}`;
   $('vehicle-mass').textContent=`${Math.round(sim.totalMass).toLocaleString('en-US')} kg`;
   $('terrain-description').textContent=TERRAINS[sim.terrainType].description;
   document.querySelectorAll('[data-terrain]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.terrain===sim.terrainType)));
@@ -180,7 +187,7 @@ function updateSelection(){
 function telemetry(){
   const state=sim.snapshot();state.wheels.forEach((w,i)=>{
     const tyre=state.tyres[i];travelNodes[i].value.textContent=!w.contact?'AIR':sim.driving?`${(tyre.load/1000).toFixed(1)} kN`:`${Math.round(w.compression*1000)} mm`;
-    const amount=sim.driving?tyre.load/(sim.totalMass*9.81/2):w.compression/(sim.setup.bump+sim.setup.droop);
+    const axle=i<2?0:1,amount=sim.driving?tyre.load/(sim.totalMass*9.81/2):w.compression/(sim.setup.travel.bump[axle]+sim.setup.travel.droop[axle]);
     travelNodes[i].bar.style.width=`${THREE.MathUtils.clamp(amount,0,1)*100}%`;travelNodes[i].bar.classList.toggle('air',!w.contact);travelNodes[i].bar.classList.toggle('sliding',sim.driving&&tyre.usage>.97);
   });
   $('speed-value').textContent=`${Math.round(sim.groundSpeed*3.6)} km/h`;

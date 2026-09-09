@@ -16,9 +16,10 @@ export function makeCar(scene) {
   const body = new THREE.Group(); scene.add(body);
   let shells = [], windows = [], bodywork=new THREE.Group(), currentWorld=null, currentSetup=null, faded=false; body.add(bodywork);
   const material = (color, metalness = 0, roughness = .45) => new THREE.MeshStandardMaterial({ color, metalness, roughness });
-  const paint = material('#a9bbb0', .45, .27), dark = material('#263833', .35, .4);
+  const paint = material('#a9bbb0', .45, .27), dark = material('#43574c', .12, .58);
   const glass = material('#283e3c', .55, .14), rubber = material('#242925', .0, .92);
   const metal = material('#bbc3b5', .82, .24), orange = material('#e06b35', .32, .3);
+  dark.envMapIntensity=.45;metal.envMapIntensity=.65;orange.envMapIntensity=.4;
   const black = material('#333a34', .4, .45), light = new THREE.MeshStandardMaterial({ color: '#fff2cc', emissive: '#f0deb0', emissiveIntensity: .65 });
   const red = new THREE.MeshStandardMaterial({ color:'#bb4634', emissive:'#e43c20', emissiveIntensity:.5 });
   function mesh(geo, mat, parent = bodywork, p = [0,0,0]) {
@@ -125,18 +126,21 @@ export function makeCar(scene) {
   const detail=mechanicalDetail(scene,body);
   const torsionBeam=rod(scene,black,.042);
   const beams=[0,1].map(()=>({beam:rod(scene,black,.068),diff:mesh(new THREE.SphereGeometry(.17,20,14),dark,scene)}));
-  function springPosition(s,bottom,top,damperOffset=0){
+  function springPosition(s,bottom,top,damperBottom,damperTop,seatOffset=0){
     const delta=new THREE.Vector3().subVectors(top,bottom),length=delta.length();
-    s.coil.position.copy(bottom);s.coil.quaternion.setFromUnitVectors(vec(0,1,0),delta.clone().normalize());s.coil.scale.y=Math.max(.03,length);
-    const offset=vec(0,0,damperOffset).applyQuaternion(body.quaternion),db=bottom.clone().add(offset),dt=top.clone().add(offset);
-    between(s.damper,db,db.clone().lerp(dt,Math.min(.65,.27/length)));
-    between(s.piston,db.clone().lerp(dt,.24),dt);
-    s.mounts[0].position.copy(bottom);s.mounts[1].position.copy(top);
+    const axis=delta.clone().normalize(),coilBottom=bottom.clone().addScaledVector(axis,seatOffset),coilTop=top.clone().addScaledVector(axis,seatOffset?-.055:0);
+    s.coil.position.copy(coilBottom);s.coil.quaternion.setFromUnitVectors(vec(0,1,0),axis);s.coil.scale.y=Math.max(.03,coilBottom.distanceTo(coilTop));
+    const db=damperBottom,dt=damperTop,distance=db.distanceTo(dt);
+    s.barrelLength??=distance*.57;
+    const shoulder=db.clone().lerp(dt,Math.min(.85,s.barrelLength/distance));
+    between(s.damper,db,shoulder);between(s.piston,shoulder,dt);
+    s.mounts[0].position.copy(coilBottom);s.mounts[1].position.copy(coilTop);
     s.mounts.forEach(m=>m.quaternion.copy(s.coil.quaternion));
   }
   function update(sim){
     if(currentWorld!==sim.world){
       currentWorld=sim.world;currentSetup=sim.setup;
+      springs.forEach(s=>{s.barrelLength=null;});
       bodywork.traverse(m=>{if(!m.userData.assetGeometry)m.geometry?.dispose();if(m.userData.ownMaterial)m.material.dispose();});
       bodywork.userData.paint?.dispose();body.remove(bodywork);shells=[];windows=[];
       if(sim.setup){const built=sim.setup.model?instantiateVehicle(sim.setupId,sim.restHeight,sim.setup):buildBodywork(sim.setup,sim.restHeight,{dark,glass,metal,orange,black,light,red});
@@ -157,7 +161,9 @@ export function makeCar(scene) {
     torsionBeam.visible=frame.torsion?.length===2;if(torsionBeam.visible)between(torsionBeam,from(frame.torsion[0]),from(frame.torsion[1]));
     frame.springs.forEach((spring,i)=>{
       const s=springs[i],bottom=from(spring.bottom),top=from(spring.top);
-      springPosition(s,bottom,top,spring.leaf?.18:sim.wheelParts[i].kind==='torsion'?.15:0);
+      const layout=sim.setup?(i<2?sim.setup.front:sim.setup.rear):sim.type;
+      const seats=sim.setup&&!spring.separate?(layout==='macpherson'?sim.wheelParts[i].radius*.85:.09):0;
+      springPosition(s,bottom,top,from(spring.damperBottom),from(spring.damperTop),seats);
       s.coil.visible=!spring.leaf;s.mounts.forEach(m=>m.visible=!spring.leaf);
       if(sim.setup){s.coil.scale.x=s.coil.scale.z=sim.radius/.35*.80;}
       s.bypassDamper.visible=s.bypassPiston.visible=s.reservoir.visible=spring.bypass;

@@ -12,3 +12,5 @@ This work is based on "Generic passenger car pack" (https://sketchfab.com/3d-mod
 Adaptation by Suspension Lab: separated into ten vehicles; transforms normalized
 to metres and Y-up; wheel pivots centred; original textures and design retained.
 Suspension Lab adds its own mechanical geometry and simulation.
+Runtime adaptations: softer metallic materials and studio lighting; recessed
+inner wheelhouses for suspension travel, retaining the outer body design.

@@ -10,7 +10,7 @@ test('all original download formats retain their exact recorded bytes and attrib
 test('processed geometry retains ten bodies and forty centred wheels in metres',async()=>{
  await registerTestAssets(SETUP_ORDER);
  for(const id of SETUP_ORDER){const scene=getVehicleAsset(id),cfg=SETUPS[id];scene.updateMatrixWorld(true);const body=scene.getObjectByName('body');assert.ok(body&&body.children.length===3);const bounds=new Box3().setFromObject(body),size=bounds.getSize(new Vector3());assert.ok(Math.abs(size.z-cfg.length)<.0001);assert.ok(Math.abs(size.x-cfg.width)<.0001);
-  for(const [i,name] of ['wheel_fl','wheel_fr','wheel_rl','wheel_rr'].entries()){const wheel=scene.getObjectByName(name),box=new Box3().setFromObject(wheel),centre=box.getCenter(new Vector3());assert.ok(centre.distanceTo(wheel.position)<.00002,`${id}/${name}: off-centre pivot`);assert.ok(Math.abs((box.max.y-box.min.y)/2-cfg.wheels[i].radius)<.00001);assert.ok(cfg.bump+.01<=cfg.wheels[i].archGap+cfg.lift,`${id}: travel exceeds measured arch space`);}
+  for(const [i,name] of ['wheel_fl','wheel_fr','wheel_rl','wheel_rr'].entries()){const wheel=scene.getObjectByName(name),box=new Box3().setFromObject(wheel),centre=box.getCenter(new Vector3());assert.ok(centre.distanceTo(wheel.position)<.00002,`${id}/${name}: off-centre pivot`);assert.ok(Math.abs((box.max.y-box.min.y)/2-cfg.wheels[i].radius)<.00001);assert.ok(cfg.travel.bump[i<2?0:1]>0&&cfg.travel.droop[i<2?0:1]>0);}
  }
  assert.ok(SETUPS.sports.wheels[2].radius>SETUPS.sports.wheels[0].radius+.015);
 });

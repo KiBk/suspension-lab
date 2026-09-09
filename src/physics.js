@@ -2,6 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { Vector3, Quaternion } from 'three';
 import { tyreStep, rollingResistance, SURFACES } from './tyres.js';
 import { SETUPS } from './setups.js';
+import { suspensionMount } from './suspension-mounts.js';
 import { Road, TERRAINS } from './terrain.js';
 await RAPIER.init();
 
@@ -90,15 +91,23 @@ export class Suspension {
     for(const dz of width?[-width,width]:[0])this.links.push({body:rod,a:pa.clone().add(V(0,0,dz)),b:pb,kind,length:pa.clone().add(V(0,0,dz)).distanceTo(pb)});
     return rod;
   }
-  spring(a,anchorA,b,anchorB,index,preload,minLength,droop,bypass=false){
+  spring(a,anchorA,b,anchorB,index,preload,minLength,droop,bypass=false,lever=null){
     const length=at(a,anchorA).distanceTo(at(b,anchorB)),tune=TYPES[this.type];
-    const cfg=this.setup,axle=index<2?0:1,layout=cfg?(axle===0?cfg.front:cfg.rear):null,ratio=layout==='wishbone'?.78:1;
+    const cfg=this.setup,axle=index<2?0:1,layout=cfg?(axle===0?cfg.front:cfg.rear):null;
+    const inclination=at(a,anchorA).sub(at(b,anchorB)).normalize().y;
+    const ratio=cfg?Math.max(.3,(lever??(layout==='wishbone'?.78:1))*inclination):1;
     const k=cfg?cfg.spring[axle]/ratio**2:tune.spring,c=cfg?cfg.damping[axle]/ratio**2:tune.damping;
     if(cfg)preload=this.bodyMass*9.81/4/ratio;
     const s={a,b,anchorA,anchorB,index,k,c,ratio,rest:length+preload/k,min:cfg?.08:minLength,max:length+(cfg?.6:droop),force:0,bypass};
     this.springs.push(s);
     s.rope=this.joint(RAPIER.JointData.rope(s.max,anchorA,anchorB),a,b,false);
     return s;
+  }
+  separateDamper(s,b,anchorB,anchorA,lever=1){
+    const axis=at(this.chassis,anchorA).sub(at(b,anchorB)).normalize();
+    const ratio=Math.max(.3,lever*axis.y);
+    s.damper={a:this.chassis,b,anchorA,anchorB,c:this.setup.damping[s.index<2?0:1]/ratio**2,ratio};
+    s.c=0;
   }
   wheelCollider(body,position,radius=this.radius,width=.27){
     // The solver supplies normal contact only; the brush model supplies all
@@ -111,29 +120,41 @@ export class Suspension {
       const i=axle*2+side,c=this.corners[i],cfg=this.setup,shape=cfg.wheels[i],sign=Math.sign(c.x),r=shape.radius;
       const hubLocal=V(c.x,r-this.rideHeight+.008,c.z),hub=this.body(at(this.chassis,hubLocal),46,V(shape.width/2,r*.65,r*.65));
       this.wheelParts[i]={body:hub,local:V(),collider:this.wheelCollider(hub,V(),r,shape.width),kind:layout==='torsion'?'torsion':'independent',radius:r,width:shape.width};
-      const height=Math.min(.14,r*.42),reach=Math.min(.43,Math.abs(c.x)*.53),low=V(0,-height,0),up=V(0,height,0);
-      const inner=V(c.x-sign*reach,hubLocal.y-height+.01,c.z),top=V(c.x-sign*.055,hubLocal.y+(layout==='macpherson'?.44:r*.98),c.z);
+      const mount=suspensionMount(cfg,i),top=V(mount.top.x,mount.top.y,mount.top.z);
+      const height=Math.min(.14,r*.42),reach=Math.min(.43,Math.abs(c.x)*.53),uprightX=-sign*(shape.width/2+.05),low=V(uprightX,-height,0),up=V(uprightX,height,0);
+      const inner=V(c.x+uprightX-sign*reach,hubLocal.y-height+.01,c.z);
       this.links.push({body:hub,a:low,b:up,kind:'upright',length:height*2});
       if(layout==='torsion'){
         const pivot=V(c.x,hubLocal.y+.05,c.z+.55),a=at(this.chassis,pivot),b=V().copy(hub.translation()),centre=midpoint(a,b),arm=this.body(centre,12),pa=a.clone().sub(centre),pb=b.clone().sub(centre);
         this.joint(RAPIER.JointData.revolute(pivot,pa,V(1,0,0)),this.chassis,arm).setLimits(-.45,.45);
         this.joint(RAPIER.JointData.fixed(pb,{x:0,y:0,z:0,w:1},ZERO,{x:0,y:0,z:0,w:1}),arm,hub);
         this.links.push({body:arm,a:pa,b:pb,kind:'trailing',length:pa.distanceTo(pb)});this.torsionArms.push({body:arm,point:pa.clone().lerp(pb,.42)});
-        const springX=-sign*.11;this.spring(this.chassis,top.clone().add(V(springX,0,-.06)),hub,V(springX,0,-.06),i,0,.10,.2);
+        const springZ=mount.springZ,springX=-sign*mount.springInset;
+        const springTop=V(c.x+springX,mount.springHeight+cfg.lift-this.rideHeight,c.z+springZ);
+        const spring=this.spring(this.chassis,springTop,hub,V(springX,-.02,springZ),i,0,.10,.2,false,(.55-springZ)/.55);
+        this.separateDamper(spring,hub,V(uprightX,-.035,-.07),top,(.55+.07)/.55);
       }else if(layout==='multilink'){
         const anchors=[[-height,.11,reach,.22,.012],[-height,-.11,reach,.24,.012],[height,.09,reach*.76,.20,-.015],[height,-.09,reach*.78,.19,-.015],[0,-.13,reach*.90,.13,0]];
-        for(const [y,z,length,spread,dy] of anchors)this.arm(this.chassis,V(c.x-sign*length,hubLocal.y+y+dy,c.z+Math.sign(z)*spread),hub,V(0,y,z),'multilink');
-        this.spring(this.chassis,top,hub,V(-sign*.06,-height*.3,0),i,0,.12,.2);
+        let springArm,springInner,springOuter;
+        for(const [y,z,length,spread,dy] of anchors){
+          const a=V(c.x+uprightX-sign*length,hubLocal.y+y+dy,c.z+Math.sign(z)*spread),b=V(uprightX,y,z);
+          const arm=this.arm(this.chassis,a,hub,b,'multilink');
+          if(!springArm){springArm=arm;springInner=a;springOuter=b;}
+        }
+        const lever=.68,bottom=at(this.chassis,springInner).lerp(at(hub,springOuter),lever);
+        const springTop=mount.coilover?top:V(c.x-sign*mount.springInset,mount.springHeight+cfg.lift-this.rideHeight,bottom.z);
+        const spring=this.spring(this.chassis,springTop,springArm,local(springArm,bottom),i,0,.12,.2,false,lever);
+        if(!mount.coilover)this.separateDamper(spring,hub,V(uprightX,-.035,-.10),top);
       }else{
         const lower=this.arm(this.chassis,inner,hub,low,'lower',true,.17,sign>0?[-.40,.55]:[-.55,.40]);
         if(layout==='macpherson'){
           // A real telescoping strut, inclined inwards at its upper bearing.
-          const axis=top.clone().sub(hubLocal).normalize(),tube=this.body(at(this.chassis,top),10,V(.045,.20,.045));
+          const strutBottom=V(uprightX,.015,0),axis=top.clone().sub(hubLocal.clone().add(strutBottom)).normalize(),tube=this.body(at(this.chassis,top),10,V(.045,.20,.045));
           this.joint(RAPIER.JointData.revolute(top,ZERO,Z),this.chassis,tube).setLimits(-.40,.40);
-          const prism=RAPIER.JointData.prismatic(ZERO,ZERO,axis);prism.limitsEnabled=true;prism.limits=[-.85,-.12];this.joint(prism,tube,hub,false);
-          this.spring(this.chassis,top,hub,V(),i,0,.12,.2);
+          const prism=RAPIER.JointData.prismatic(ZERO,strutBottom,axis);prism.limitsEnabled=true;prism.limits=[-1.3,-.16];this.joint(prism,tube,hub,false);
+          this.spring(this.chassis,top,hub,strutBottom,i,0,.12,.2);
         }else{
-          this.arm(this.chassis,V(c.x-sign*reach*.76,hubLocal.y+height-.018,c.z),hub,up,'upper',true,.13,sign>0?[-.5,.7]:[-.7,.5]);
+          this.arm(this.chassis,V(c.x+uprightX-sign*reach*.76,hubLocal.y+height-.018,c.z),hub,up,'upper',true,.13,sign>0?[-.5,.7]:[-.7,.5]);
           const bottom=at(this.chassis,inner).lerp(at(hub,low),.78);
           this.spring(this.chassis,top,lower,local(lower,bottom),i,0,.12,.2);
         }
@@ -163,7 +184,12 @@ export class Suspension {
           this.arm(this.chassis,mount,beam,V(outerX,y,0),'trailing');
         }
       }
-      const spring=this.spring(this.chassis,V(springX,r-this.rideHeight+.37,z),beam,V(springX,0,0),i,0,.1,.25);spring.leaf=layout==='leaf';
+      const mount=suspensionMount(cfg,i),coilX=layout==='leaf'?springX:x-sign*mount.springInset;
+      const spring=this.spring(this.chassis,V(coilX,mount.springHeight+cfg.lift-this.rideHeight,z),beam,V(coilX,0,0),i,0,.1,.25);spring.leaf=layout==='leaf';
+      // Leaf shocks are staggered fore/aft; live-axle coils have separate shocks.
+      const stagger=layout==='leaf'?sign:1;
+      const top=V(mount.top.x,mount.top.y,z+(mount.z??0)*stagger);
+      this.separateDamper(spring,beam,V(x-sign*(shape.width/2+.055),-.055,(layout==='leaf'?.075:.07)*Math.sign(mount.z)*stagger),top);
     }
     if(layout==='leaf'){
       // Leaf packs resist lateral shear, yaw and axle wind-up. Keep vertical
@@ -239,10 +265,11 @@ export class Suspension {
   configureTravel(){
     for(const s of this.springs){
       const w=this.wheelParts[s.index],hub=at(w.body,w.local),centre=local(this.chassis,hub),length=at(s.a,s.anchorA).distanceTo(at(s.b,s.anchorB));
-      s.staticLength=length;s.min=Math.max(.08,length-this.setup.bump*s.ratio);s.max=length+this.setup.droop*s.ratio;
+      const axle=s.index<2?0:1;s.bump=this.setup.travel.bump[axle];s.droop=this.setup.travel.droop[axle];
+      s.staticLength=length;s.min=Math.max(.08,length-s.bump*s.ratio);s.max=length+s.droop*s.ratio;
       this.world.removeImpulseJoint(s.rope,true);s.rope=this.joint(RAPIER.JointData.rope(s.max,s.anchorA,s.anchorB),s.a,s.b,false);
       const stop=this.joint(RAPIER.JointData.generic(centre,w.local,V(0,1,0),0),this.chassis,w.body,false);
-      this.world.impulseJoints.raw.jointSetLimits(stop.handle,RAPIER.JointAxis.LinX,-this.setup.droop,this.setup.bump);
+      this.world.impulseJoints.raw.jointSetLimits(stop.handle,RAPIER.JointAxis.LinX,-s.droop,s.bump);
       s.travelCentre=centre;
     }
   }
@@ -353,7 +380,7 @@ export class Suspension {
     const data=RAPIER.JointData.generic(ZERO,anchor,axis,mask);
     const joint=this.joint(data,hand,body,false);
     // Extra iterations keep fast grip impulses from opening the small links.
-    this.world.numSolverIterations=this.beams.length?64:32;
+    this.world.numSolverIterations=this.beams.length||this.setup?.mass>=1800?64:32;
     // Allow pushing below the settled body height, including after picking up
     // an airborne car. Bounds follow the part, rather than blocking at pickup.
     const minHeight=selection.kind==='wheel'?this.wheelParts[selection.i].radius:Math.max(.05,p.y-body.translation().y+this.restHeight-(this.setup?this.setup.bump+.015:.35));
@@ -374,7 +401,7 @@ export class Suspension {
   nudge(){this.chassis.applyTorqueImpulse({x:0,y:0,z:550},true);}
   step(dt=STEP,refresh=true){
     // Keep the grip's extra accuracy through the first impact after release.
-    this.world.numSolverIterations=this.drag||this.time<this.solverBoostUntil?(this.beams.length?64:32):16;
+    this.world.numSolverIterations=this.drag||this.time<this.solverBoostUntil?(this.beams.length||this.setup?.mass>=1800?64:32):16;
     this.world.timestep=dt;const position=this.chassis.translation();this.road.ensure(position.x,position.z);
     for(const b of this.dynamic){b.resetForces(false);b.resetTorques(false);}
     for(const s of this.springs){
@@ -388,6 +415,13 @@ export class Suspension {
       if(length>s.max-.025)force-=70000*Math.max(0,length-s.max+.025);
       s.force=clamp(force,-40000,60000);const f=axis.multiplyScalar(s.force);
       s.a.addForceAtPoint(f,pa,true);s.b.addForceAtPoint(f.clone().negate(),pb,true);
+      if(s.damper){
+        const d=s.damper,a=at(d.a,d.anchorA),b=at(d.b,d.anchorB),direction=a.clone().sub(b).normalize();
+        const va=d.a.velocityAtPoint(a),vb=d.b.velocityAtPoint(b),speed=V(va.x-vb.x,va.y-vb.y,va.z-vb.z).dot(direction);
+        const force=direction.multiplyScalar(clamp(-d.c*speed,-40000,40000));
+        d.a.addForceAtPoint(force,a,true);d.b.addForceAtPoint(force.clone().negate(),b,true);
+        s.velocity=speed;
+      }
     }
     this.antiRoll();this.tyreForces(dt);
     if(this.drag){
@@ -430,13 +464,13 @@ export class Suspension {
     this.wheels=this.wheelParts.map((w,i)=>{const p=at(w.body,w.local),s=this.springs.find(s=>s.index===i),length=at(s.a,s.anchorA).distanceTo(at(s.b,s.anchorB));let contact=false;
       if(this.road.events)contact=(this.road.states.get(w.collider.handle)?.load??0)>0;
       else this.road.contacts(w.collider,m=>{if(m.numSolverContacts()>0)contact=true;});
-      return{y:p.y,v:w.body.linvel().y,contact,force:s.force,compression:this.setup&&s.travelCentre?local(this.chassis,p).y-s.travelCentre.y+this.setup.droop:s.rest-length};});
+      return{y:p.y,v:w.body.linvel().y,contact,force:s.force,compression:this.setup&&s.travelCentre?local(this.chassis,p).y-s.travelCentre.y+s.droop:s.rest-length};});
   }
   frame(){
     return {position:this.chassis.translation(),rotation:this.chassis.rotation(),spin:this.spin,
       wheels:this.wheelParts.map((w,i)=>({position:at(w.body,w.local),rotation:Q(w.body.rotation()).multiply(new Quaternion().setFromAxisAngle(V(0,1,0),this.driving?this.tyres[i].steer:0)),radius:w.radius,spin:this.tyres?.[i]?.spin??0})),
       links:this.links.map(l=>({a:at(l.body,l.a),b:at(l.body,l.b),kind:l.kind})),
-      springs:[...this.springs].sort((a,b)=>a.index-b.index).map(s=>({top:at(s.a,s.anchorA),bottom:at(s.b,s.anchorB),bypass:s.bypass,index:s.index,leaf:s.leaf??false})),
+      springs:[...this.springs].sort((a,b)=>a.index-b.index).map(s=>({top:at(s.a,s.anchorA),bottom:at(s.b,s.anchorB),damperTop:s.damper?at(s.damper.a,s.damper.anchorA):at(s.a,s.anchorA),damperBottom:s.damper?at(s.damper.b,s.damper.anchorB):at(s.b,s.anchorB),separate:!!s.damper,bypass:s.bypass,index:s.index,leaf:s.leaf??false})),
       leaves:this.leaves.map(l=>({front:at(this.chassis,l.front),seat:at(l.body,l.seat),rear:at(l.shackle,l.rear),hanger:at(this.chassis,l.hanger)})),
       torsion:this.torsionArms.map(a=>at(a.body,a.point)),
       beams:this.beams.map(b=>({a:at(b.body,V(b.half,0,0)),b:at(b.body,V(-b.half,0,0)),rotation:b.body.rotation()}))};

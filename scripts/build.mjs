@@ -8,7 +8,9 @@ await copyFile('node_modules/@dimforge/rapier3d-compat/LICENSE', 'public/vendor/
 await mkdir('public/vendor/loaders',{recursive:true});await mkdir('public/vendor/utils',{recursive:true});
 await copyFile('node_modules/three/examples/jsm/loaders/GLTFLoader.js','public/vendor/loaders/GLTFLoader.js');
 await copyFile('node_modules/three/examples/jsm/utils/BufferGeometryUtils.js','public/vendor/utils/BufferGeometryUtils.js');
+await mkdir('public/vendor/environments',{recursive:true});
+await copyFile('node_modules/three/examples/jsm/environments/RoomEnvironment.js','public/vendor/environments/RoomEnvironment.js');
 await mkdir('public/assets',{recursive:true});await cp('assets/cars','public/assets/cars',{recursive:true});
 for (const stale of ['public/vendor/rapier.mjs', 'public/linkage.js']) await rm(stale, { force: true });
-for (const file of ['app.js', 'physics.js', 'model.js', 'bodywork.js', 'car-assets.js', 'car-dimensions.js', 'mechanical-detail.js', 'setups.js', 'terrain.js', 'road-view.js', 'view.js', 'tyres.js', 'driving-input.js', 'sound.js', 'sound-model.js', 'sound-dsp.js', 'sound-worklet.js']) await copyFile(`src/${file}`, `public/${file}`);
+for (const file of ['app.js', 'physics.js', 'model.js', 'bodywork.js', 'car-assets.js', 'car-dimensions.js', 'mechanical-detail.js', 'suspension-mounts.js', 'vehicle-travel.js', 'wheel-wells.js', 'setups.js', 'terrain.js', 'road-view.js', 'view.js', 'tyres.js', 'driving-input.js', 'sound.js', 'sound-model.js', 'sound-dsp.js', 'sound-worklet.js']) await copyFile(`src/${file}`, `public/${file}`);
 console.log('Built self-contained browser app.');
