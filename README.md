@@ -1,263 +1,135 @@
 # Suspension Lab
 
-Interactive car suspension playground at https://suspension-lab.apps.kibk.net.
+A suspension playground at https://suspension-lab.apps.kibk.net.
 
-Opening the page or pressing Reset spawns the car 70 cm above its settled pose,
-so gravity produces a short fall, landing and suspension rebound. Reset clears
-driving motion and preserves the vehicle, road and quarter speed.
-Browse six full vehicle setups with the left/right buttons. Flat, Gravel and
-Rough trail select physical road geometry and corresponding tyre grip/resistance.
+Ten consistently styled cars use **Generic passenger car pack** by **Comrade1280**
+under **CC BY 4.0**. Bodywork, glass, lights, textures and individual wheel designs
+are preserved. Each car has a suspension fitted to its measured wheel positions
+and available wheel-arch space. Baja is no longer in the vehicle carousel.
 
-Choose a vehicle beside the view controls. Grab the car's
-actual surfaces: front/rear corners tilt that corner, the ends allow pitch, and
-the middle holds the body's pitch and roll while lifting the whole car. Grab any
-wheel to lift its physical hub and compress/articulate the suspension. Release
-to drop. Drag the body downward to compress the suspension, then release to
-watch it rebound. There are no permanent pull dots or Drop button. A subtle outline marks
-the hovered area; wheel selection follows its actual position and remains
-available through faded bodywork in cutaway view.
-The camera follows chassis X/Z while retaining its height, orbit angle and zoom.
-The display circle and rim ticks follow X/Z and remain on the ground. Inside it,
-a world-aligned grid scrolls opposite actual travel, making forward motion,
-reverse, turns and slides visible. Quarter-metre squares and stronger metre lines
-remain clipped to the circle. Its position stays continuous when the empty
-physics world rebases, and follows pause and quarter speed automatically.
-Drag the background to orbit and scroll/pinch to zoom. Keyboard: Tab to a body
-area or wheel, hold Shift + Up/Down, then release. Keyboard controls appear only
-when focused and retain screen-reader labels. Cutaway, automatic rotation,
-pause, quarter speed, sound and reset share the same control dock. The removed
-Front and Drive/Park selectors are no longer needed: orbit freely and use the
-keyboard or always-visible on-screen arrows to drive.
-Each vehicle has a ready-to-use setup; there are no tuning sliders.
+## Explore
 
-## Sound
+Use the carousel arrows to change cars and Flat / Gravel / Rough trail to change
+the physical road. Drag the body or a wheel up, or push the body down and release
+to watch it bounce. Corners tilt the car; grabbing the middle holds pitch and roll
+while lifting. Driving continues during a grab. Drag the background to orbit,
+and scroll/pinch to zoom. The camera and display circle follow horizontal motion
+without following vertical falls. The grid scrolls with actual ground travel.
 
-The **Sound** button enables procedural suspension and tyre audio; it starts
-muted and creates the audio context only after a click. There is no engine layer.
-Each wheel has a separate stereo voice, positioned relative to the orbiting
-camera. Damper velocity controls hydraulic flow and quiet bushing movement;
-crossing a travel stop produces a short, muted knock. A wheel landing after
-airtime produces a rubber/body thump scaled by its downward speed.
-The suspension sits quietly beneath the tyre mix: damper and bushing texture
-is smoothed and low-passed, and travel-stop taps have short, damped decays without
-metallic overtones. Tyre scrub, sliding and landing retain their original tuning.
+Arrow keys accelerate, brake/reverse and steer; on-screen arrows support touch.
+Releasing the keys allows tyre rolling resistance to slow the car. Reset and
+initial loading start a 70 cm drop. Cutaway, orbit, pause, quarter speed and sound
+remain in the compact control dock. Sound starts muted, with no engine layer.
+Keyboard lifting: Tab to a body zone/wheel, hold Shift + Up/Down, then release.
 
-Loaded tyres produce rolling noise with irregular tread pitches (coarser for
-Baja), low-speed scrub and increasing friction noise/squeal under combined slip.
-These use the same contact velocity, wheel rotation, load and grip usage as the
-tyre physics, including sideways scrub during a stationary drop. Airborne tyres
-have no road noise. The browser uses the dry-road mix; offline tests retain
-wet and ice variants for tyre-model comparisons. These settings are illustrative.
-Rolling sits in the background: its mix gain is reduced to one quarter, the
-bright air-pumping component is heavily attenuated, and a 550 Hz low-pass filter
-softens the remaining hiss. There is no separate wind track. Suspension and
-sliding levels are unaffected by this rolling adjustment. Longitudinal scrub
-uses both relative slip and grip usage, so the normal 1–2% slip generated during
-ordinary motorway acceleration/braking does not become a loud skid sound.
-Lateral scrub, wheelspin and locked-wheel sounds remain active.
+## Cars and mechanisms
 
-Quarter speed stretches the sound with the simulation. Pause, hidden tabs and
-mute silence it; resets discard pending impacts. Gain smoothing, a subsonic
-filter, output limiting and a stalled-input fade protect against clicks and
-stuck noise. Audio observes physics without changing any forces or damping.
+| Car | Front | Rear | Drive |
+| --- | --- | --- | --- |
+| City compact | MacPherson | Torsion beam | Front |
+| Hatchback | MacPherson | Torsion beam | Front |
+| Sedan | MacPherson | Five-link independent | Rear |
+| Family wagon | MacPherson | Five-link independent | Front |
+| Grand touring coupe | MacPherson | Five-link independent | Rear |
+| Sports car | Double wishbone | Five-link independent | Rear |
+| Family minivan | MacPherson | Torsion beam | Front |
+| SUV | Double wishbone | Five-link independent | All |
+| Pickup | Double wishbone | Leaf-sprung live axle | Rear |
+| Off-road 4×4 | Four-link live axle | Four-link live axle | All |
 
-`sound-model.js` observes every 240 Hz physics step so a short impact cannot be
-missed between rendered frames. `sound-dsp.js` implements seeded noise, filters,
-friction resonances and transient envelopes. `sound-worklet.js` runs that DSP
-off the rendering thread; `sound.js` handles the user gesture, lifecycle and
-camera-relative stereo mix. All code is served locally, without recordings,
-microphone access or external requests. This is an experimental procedural
-interpretation, not calibrated vehicle acoustics.
+`src/setups.js` contains representative masses, wheel rates, dampers, anti-roll
+coupling, centre-of-mass heights and drivetrains. `src/car-dimensions.js` is
+measured from the imported meshes. The sports car retains its larger rear tyres;
+collision shapes, wheel inertia inputs, rotation and tyre forces use each wheel's
+own radius and width. Compression travel respects the mesh's arch clearance,
+with small explicit ride-height adjustments of 20–35 mm.
 
-Run `node scripts/render-sounds.mjs` to produce repeatable WAV previews and
-peak/RMS metrics from actual physics: press/rebound, Baja landings, quarter-speed
-landings and dry/wet/ice cornering. Audio tests cover contact gating, impact
-transitions, surface response, flat-road silence from the suspension, bounded
-samples, panning, reset, stale input and slow-motion decay.
+These are fictional designs with class-appropriate suspension, not calibrated
+replicas of production vehicles. Mechanisms follow real architectural patterns:
+[Toyota struts and torsion beams](https://newsroom.toyota.eu/the-all-new-toyota-yaris/)
+and [Mazda double-wishbone/five-link architecture](https://www.mazda.com/content/dam/mazda/corporate/mazda-com/en/pdf/innovation/monozukuri/technology/tech-review/2006/giho_all2006.pdf).
 
-Implementation references: [AudioWorklet](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_AudioWorklet),
-[Web Audio playback activation](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices),
-and [Bridgestone tread pitch terminology](https://origin-prod-cloud.tires.bridgestone.com/en-us/learn/automotive/tire-terminology).
+The cutaway adds structural rails/subframes, uprights, ball joints, bushes,
+spring seats, bump stops, brake discs and calipers, anti-roll links and driven
+half-shafts with CV boots. Coil and damper endpoints follow physical anchors;
+five-link rear suspensions have five actual locating links per wheel.
 
-## Vehicle setups and terrain
+Pickup leaf springs use two effective half-leaves and a swinging rear shackle
+on each side. Vertical spring forces approximate distributed leaf bending;
+constraints approximate the packs' lateral shear and wind-up stiffness. Layered
+leaves follow the guide endpoints. This is a lumped flexible-leaf approximation,
+not a finite-element spring pack. Rear torsion beams similarly use physical
+trailing arms with elastic roll coupling rather than distributed beam torsion.
+Steering uses virtual knuckles and Ackermann angles, with visible tie rods.
 
-The carousel selects six original body models and complete physical setups:
+## Imported sources and processing
 
-| Vehicle | Mass | Wheel travel | Front / rear | Drive |
-| --- | ---: | ---: | --- | --- |
-| Baja truck | 1,900 kg | 490 mm | Double wishbone / four-link live axle | Rear |
-| Old pickup | 1,750 kg | 240 mm | Four-link live axles at both ends | Rear |
-| Sports car | 1,280 kg | 80 mm | Double wishbones at both ends | Rear |
-| Family wagon | 1,600 kg | 160 mm | MacPherson / double wishbone | Front |
-| SUV | 2,150 kg | 220 mm | Double wishbones at both ends | All |
-| Economy hatchback | 1,050 kg | 130 mm | MacPherson / coupled trailing arms | Front |
+All three user-provided downloads are retained unchanged under `assets/source`:
+original FBX/textures ZIP, glTF/textures/licence ZIP and GLB. SHA-256 checksums
+record those originals. No source archive is copied into the website build.
 
-`src/setups.js` specifies mass, wheelbase, track, tyres, centre-of-mass height,
-spring/damper rates, anti-roll coupling, bump/droop stops and drive torque.
-Travel is measured vertically at the hubs relative to the chassis. The static
-pose is settled under gravity before fitting its travel stops. The economy
-rear arms are hinged around a transverse axis and coupled by an elastic roll
-force; the visible crossmember follows both arms. This approximates a torsion
-beam without a finite-element model of the twisting beam itself.
-
-These are illustrative archetypes, not measured replicas. The pickup uses
-coil springs and four-link location rather than pretending to model leaf-spring
-flex. Architectural references: [Mazda original MX-5 double wishbones](https://www.mazda.com/en/about/history/greatcar/roadster/03/),
-[Toyota Yaris struts and torsion beam](https://newsroom.toyota.eu/the-all-new-toyota-yaris/),
-and [TSCO truck layout](https://tscoracing.com/tsco-trophy-truck/).
-
-Flat retains the exact infinite collision plane. Gravel adds small, continuous
-corrugations, reduced grip and increased rolling resistance. Rough trail has
-rounded bumps and dips, approaching 53 cm peak-to-peak, with a smooth starting
-area that blends into the trail over four metres. Low cars can bottom out or
-lose traction; Baja has much more travel available. Loose stones and deformable
-soil are not simulated.
-
-`src/terrain.js` maintains a 3×3 neighbourhood of 12 m heightfield tiles with
-25 cm spacing. Adjacent tiles share identical boundary samples. Rapier's
-internal-edge correction suppresses false triangle-edge bumps; tiles under
-the car persist while neighbouring tiles stream in. Contact-force events supply
-actual solved tyre loads, because Rapier 0.20 heightfield manifolds do not expose
-their solver impulses. Local manifold points recover the tyre patches, and
-friction acts in each patch's road-tangent plane.
-
-`src/road-view.js` uses the exact same samples and triangle diagonal as physics.
-The circle clips this world-aligned terrain and its grid, so bumps and squares
-flow underneath the car as it travels. Road phase and contact points survive
-world rebasing. Setup/terrain changes reset and drop the car while preserving
-cutaway, orbit, quarter speed and sound choices.
-
-## Physics and limits
-
-`src/physics.js` uses Rapier rigid bodies and joints at 240 Hz. The chassis moves
-and rotates in all three dimensions. Actual arm bodies and revolute, spherical,
-prismatic and travel-limit joints guide the wheels and locate the axles.
-Springs and dampers apply equal-and-opposite forces at their body anchors.
-On Flat, an infinite collision plane provides an exactly vertical road normal
-at every heading, preventing false sloped contacts from a box-shaped ground.
-The drawing follows the physical body transforms and linkage endpoints.
-
-All new setups have firm compression and droop limits at each wheel hub, measured
-along the chassis vertical. They prevent the linkage from folding above the
-body during hard drops and fast presses, while leaving lateral/longitudinal
-linkage motion and axle articulation free. Rapier 0.20's per-axis generic limits
-are configured through its raw joint-set API; no body positions are clamped.
-
-Chassis mass is total vehicle mass minus the actual unsprung bodies. Rotational
-inertia follows each body's proportions. Gravity settling determines the initial
-pose. The former four standalone suspension layouts remain available to the
-offline regression tests, while the browser uses only the six vehicle setups.
-
-A kinematic grip follows the vertical pointer target at up to 9.6 m/s (four
-times the former limit), with an 80 m/s² acceleration/braking ramp. The joint
-solver uses extra iterations while a grip is active. Body grabs can press down
-through the chosen vehicle's bump travel; wheel targets respect the tyre's ground clearance and the local road height. Downward limits use the settled pose, so an airborne pickup can also
-be lowered into compression. The grab uses a generic joint whose only locked translation is world vertical.
-The hand is the first body, so its fixed reference frame keeps that constraint
-vertical even when the car tilts or turns. Horizontal translations remain free;
-following the picked anchor keeps coordinates small without applying a braking
-force. The middle additionally holds pitch/roll at pickup while allowing yaw,
-so steering continues. Front, rear, corner and wheel grabs allow all rotations.
-A live axle can articulate and transmit a wheel lift to its other wheel. Releasing removes the grip entirely.
-The body has no fixed centre pivot. Solid axles follow the arcs of their four
-locating links, so some fore/aft movement during travel is physically expected.
-
-Angular stops keep the independent linkages on their intended assembly branch;
-in particular, the Baja lower arms stop before the four-bar can fold and turn
-a wheel sideways. Each vehicle uses its own damping and anti-roll rates.
-
-Arrow keys start driving: Up accelerates forward, Down brakes and then reverses,
-and Left/Right steer. Release to coast with gradual tyre rolling resistance.
-Four on-screen arrow controls are always available for touch.
-Grabbing the body or a wheel preserves velocity, tyre rotation, throttle and
-steering. The car can accelerate, turn, lift and drop during the same gesture;
-arrow input can also start driving while a grab is already held. Reset stops
-driving and starts the short spawn drop. Quarter speed also slows the driving physics. Speed,
-lateral acceleration, grip saturation and the four wheel loads make weight
-transfer visible. The empty world rebases periodically for continuous driving.
-Displayed speed is the magnitude of chassis velocity across the ground plane,
-matching the circle's movement. It stays positive in reverse, during sideways
-slides and while tumbling; vertical lift/fall speed is excluded. The signed
-forward-speed projection is retained separately for physics diagnostics.
-Ground contact points are captured before a rebase and translated as complete
-points, keeping tyre forces at the wheels while solver contacts change frames.
-
-`src/tyres.js` supplies all tangential tyre forces, including while parked or
-performing drops. Rapier supplies ground contact and normal impulse; wheel
-loads are filtered over 25 ms and become zero when airborne. A transient brush
-response resists lateral slip and suspension scrub, with load-sensitive grip,
-0.35 m lateral relaxation length, longitudinal slip and a combined-slip friction
-circle. An implicit rotational solve integrates wheel inertia and drive torque.
-Longitudinal contact torque acts on the free wheel rotor, while drivetrain
-reaction torque reaches its suspension carrier. Wheel rotation follows this
-physical rolling state; there is no idle spin animation.
-
-Rolling resistance applies a contact-only opposing force at each wheel hub,
-`F = -Crr × load × tanh(hubSpeed / 0.2)`. Illustrative coefficients range from 0.010 for the sports car to 0.018 for Baja,
-with additional resistance on Gravel and Rough trail. It uses the tyre load and wheel heading,
-acts in forward and reverse, fades smoothly near rest and becomes zero in the
-air. Wheel inertia and traction still determine the rotor response. This adds
-no velocity clamp or global damping while driving; aerodynamic drag is omitted.
-The low-speed transition prevents resistance from driving the car backwards.
-Model reference: [MathWorks rolling resistance](https://www.mathworks.com/help/sdl/ref/rollingresistance.html).
-
-The browser multiplies baseline dry-road grip by the vehicle and terrain
-coefficients for cornering and suspension scrub during compression/rebound. Offline tests also compare lower-grip variants: a 0.75 m
-drop compresses independent suspensions farther on ice because lateral scrub
-meets less resistance; the fixed-track solid axle shows much less difference.
-
-Front tyres steer with virtual knuckles and Ackermann angles. The drivetrain
-distributes torque equally across the selected driven wheels; braking acts on
-all four wheels. Detailed differentials and gearboxes are omitted. These are illustrative parameters,
-not fitted to a measured tyre or production vehicle. Rigid contact shapes omit
-vertical carcass deformation; camber thrust, self-aligning torque, detailed
-steering links and structural flex are also omitted. This is an educational
-approximation, not a validated engineering design tool. The former analytical `src/linkage.js` is unused
-historical source and is excluded from the browser build.
-
-Tests also cover all six vehicle masses and mechanisms, full body/wheel picking,
-short-travel stops through hard drops and fast grabs, driving every vehicle on
-both uneven roads, matching physical/rendered triangles and seams, and airborne
-contact gating across terrain rebases.
-
-Tests cover surface picking at different headings, all sixteen wheel/layout
-combinations lifting and settling, downward compression/rebound, fast body lifts,
-rapid reversals, moving grabs in forward/reverse on every layout, airborne
-horizontal momentum during tilted grabs and world rebases, steering and
-acceleration while held, the middle surface grip, all four resting layouts,
-separate end lifts, corner rotation
-and body translation, release and settling, free-fall centre of mass, axle
-location, fixed link lengths, Baja geometry, wheel rotation and extreme pulls
-on all seven handles, repeated Baja folding regression, visible rebound and
-horizontal camera following. Driving tests cover acceleration, coasting losses,
-smooth stops in forward and reverse, zero airborne rolling resistance,
-braking, reversing, both steering directions, outside-wheel load transfer,
-combined-slip saturation, zero airborne traction, world rebasing, high-speed
-throttle-release stability, diagonal ground contact at 30–340 km/h (including
-30-second 340 km/h coasts), tyre-force positions immediately after recentring, airborne
-motion across rebases, input release
-and surface-dependent parked drops. Browser and deployment checks are recorded
-locally in `evidence/`, which is excluded from Git along with generated assets,
-dependencies and credentials. Build from the committed source and lockfile.
-
-## Local development
-
+```sh
+node scripts/process-car-pack.mjs assets/source/sketchfab.glb
 ```
+
+The processor splits the scene into ten GLBs, removes the presentation platform,
+bakes transforms into metres/Y-up, corrects the coupe's internal rotation,
+centres wheel pivots on tyre geometry and preserves material/texture assignments.
+`assets/cars/manifest.json` records measured dimensions, wheel positions, arch
+clearance, triangle counts, source attribution and the input hash. The same
+measurements generate `src/car-dimensions.js`.
+
+The browser loads one car at a time and retains at most three decoded models.
+Everything is served locally; there are no external runtime model requests.
+Attribution, licence links and an adaptation notice appear in How it works and
+`assets/cars/LICENSE.txt`. Original asset source:
+https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5
+
+## Physics, terrain and sound
+
+Rapier rigid bodies and joints run at 240 Hz. Springs/dampers apply equal and
+opposite forces at physical attachment points; per-wheel bump/droop constraints
+prevent mechanisms folding through the body. Static settling establishes each
+car's rest pose. Chassis collision height is aligned with the visible underside.
+The former four standalone layouts remain only as historical regression fixtures.
+
+Flat uses an infinite collision plane. Gravel and Rough trail use streamed
+12 m heightfield tiles with 25 cm samples and matching rendered geometry.
+Shared edge samples and Rapier internal-edge correction prevent false seams.
+Contact-force events recover solved tyre loads on heightfields. Ground contact
+points remain consistent during periodic horizontal world rebases.
+
+Tyres use a transient brush response, longitudinal slip, load-sensitive grip,
+a combined-slip friction circle and wheel inertia. Tyre friction remains active
+during parked drops, resisting sideways scrub as the suspension moves. Rolling
+resistance depends on contact load and fades smoothly near rest. Airborne tyres
+have no road forces. Aerodynamic drag, carcass deformation, camber thrust,
+self-aligning torque, loose stones and deformable soil are omitted.
+
+Quiet procedural sound follows contact load, slip, damper speed and impacts.
+Suspension noise stays below tyre sounds, rolling hiss is heavily attenuated,
+and there is no engine or wind track. Quarter speed stretches the audio with
+physics. Mute, pause and hidden tabs silence it. This is an educational simulation
+with illustrative physical and acoustic parameters, not an engineering tool.
+
+## Development and verification
+
+```sh
 npm ci --ignore-scripts
 make check
 make serve
 ```
 
-Open http://localhost:8097. Three.js 0.180.0 and Rapier 0.20.0 are pinned in the
-lockfile and copied locally during the build. Rapier's compatibility module
-embeds its WebAssembly. There are no external runtime requests, fonts, analytics,
-accounts or server-side application state. The car is original procedural
-geometry. Dependency licenses are served under `/vendor/THREE-LICENSE.txt` and
-`/vendor/RAPIER-LICENSE.txt`.
+Open http://localhost:8097. Three.js 0.180.0 and Rapier 0.20.0 are pinned and
+copied locally. `make check` builds and runs geometry, picking, physics, driving,
+grabbing, tyre, terrain and audio regressions. Tests exercise every imported car
+through hard drops, fast downward presses and diagonal 340 km/h coasting,
+including the earlier axle-folding and invisible-bump regressions.
+Local browser/deployment evidence is ignored under `evidence/`.
 
 ## Deployment
 
-```
+```sh
 make login
 make push
 make publish
@@ -265,15 +137,9 @@ make verify
 make logout
 ```
 
-These optional deployment commands require an authenticated Hebe checkout
-(default `~/hebe`; override with `HEBE_ROOT=/path/to/hebe`), `crane`, and `jq`.
-Credentials are supplied by local tooling and are never stored in this project.
-Uses the existing Hebe crane build and logged publishing workflow, targeting
-only the `suspension-lab` stateless app. The publisher resolves the image tag
-to an immutable digest and manages HTTPS ingress. Verification checks health
-and compares the served app and dependency modules with local bytes.
-
-References: [Rapier joints](https://rapier.rs/docs/user_guides/javascript/joints/)
-and [TSCO Trophy Truck layout](https://tscoracing.com/tsco-trophy-truck/).
-
-Tyre reference: [MathWorks Fiala wheel model](https://www.mathworks.com/help/vdynblks/ref/fialawheel2dof.html).
+Uses the existing Hebe stateless-app publisher, an immutable image digest and
+HTTPS at suspension-lab.apps.kibk.net. Credentials come from local tooling and
+are never stored here. `make verify` compares all served code, dependencies,
+licences and processed car assets against local bytes and checks `/healthz`.
+The private GitHub repository includes source downloads, processed assets,
+source code and reproducible build/processing scripts.

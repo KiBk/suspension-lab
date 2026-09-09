@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { CORNERS } from './physics.js';
 import { buildBodywork } from './bodywork.js';
+import {instantiateVehicle,activateVehicleAsset} from './car-assets.js';
+import {mechanicalDetail} from './mechanical-detail.js';
 
 // Body-local zones stay attached to the car at any heading or camera angle.
 export function bodyZone(p){
@@ -120,12 +122,13 @@ export function makeCar(scene) {
     outline.rotation.y=Math.PI/2;outline.position.x=wheels.indexOf(w)%2===0?.15:-.15;
     w.add(outline);outline.visible=false;outline.raycast=()=>{};return outline;
   });
+  const detail=mechanicalDetail(scene,body);
   const torsionBeam=rod(scene,black,.042);
   const beams=[0,1].map(()=>({beam:rod(scene,black,.068),diff:mesh(new THREE.SphereGeometry(.17,20,14),dark,scene)}));
   function springPosition(s,bottom,top,damperOffset=0){
     const delta=new THREE.Vector3().subVectors(top,bottom),length=delta.length();
     s.coil.position.copy(bottom);s.coil.quaternion.setFromUnitVectors(vec(0,1,0),delta.clone().normalize());s.coil.scale.y=Math.max(.03,length);
-    const db=bottom.clone().add(vec(0,0,damperOffset)),dt=top.clone().add(vec(0,0,damperOffset));
+    const offset=vec(0,0,damperOffset).applyQuaternion(body.quaternion),db=bottom.clone().add(offset),dt=top.clone().add(offset);
     between(s.damper,db,db.clone().lerp(dt,Math.min(.65,.27/length)));
     between(s.piston,db.clone().lerp(dt,.24),dt);
     s.mounts[0].position.copy(bottom);s.mounts[1].position.copy(top);
@@ -134,16 +137,17 @@ export function makeCar(scene) {
   function update(sim){
     if(currentWorld!==sim.world){
       currentWorld=sim.world;currentSetup=sim.setup;
-      bodywork.traverse(m=>{m.geometry?.dispose();if(m.userData.ownMaterial)m.material.dispose();});
+      bodywork.traverse(m=>{if(!m.userData.assetGeometry)m.geometry?.dispose();if(m.userData.ownMaterial)m.material.dispose();});
       bodywork.userData.paint?.dispose();body.remove(bodywork);shells=[];windows=[];
-      if(sim.setup){const built=buildBodywork(sim.setup,sim.restHeight,{dark,glass,metal,orange,black,light,red});bodywork=built.group;shells=built.shells;windows=built.windows;bodywork.userData.paint=built.paint;body.add(bodywork);}
+      if(sim.setup){const built=sim.setup.model?instantiateVehicle(sim.setupId,sim.restHeight,sim.setup):buildBodywork(sim.setup,sim.restHeight,{dark,glass,metal,orange,black,light,red});
+        if(built.wheels){rotors.forEach((rotor,i)=>{rotor.traverse(m=>{if(!m.userData.assetGeometry)m.geometry?.dispose();if(m.userData.ownMaterial)m.material?.dispose();});rotor.clear();rotor.add(built.wheels[i]);for(const m of wheels[i].children)if(m!==rotor&&m!==wheelHighlights[i])m.visible=false;wheelHighlights[i].scale.setScalar(sim.wheelParts[i].radius/.35);});activateVehicleAsset(sim.setupId);} bodywork=built.group;shells=built.shells;windows=built.windows;bodywork.userData.paint=built.paint;body.add(bodywork);}
       else{bodywork=new THREE.Group();body.add(bodywork);buildLegacy();}
       cutaway(faded);
     }
     const frame=sim.frame();body.position.copy(frame.position);body.quaternion.copy(frame.rotation);body.updateMatrixWorld(true);
-    wheels.forEach((wheel,i)=>{wheel.position.copy(frame.wheels[i].position);wheel.quaternion.copy(frame.wheels[i].rotation);wheel.scale.setScalar(frame.wheels[i].radius/.35);rotors[i].rotation.x=frame.wheels[i].spin;});
+    wheels.forEach((wheel,i)=>{wheel.position.copy(frame.wheels[i].position);wheel.quaternion.copy(frame.wheels[i].rotation);wheel.scale.setScalar(sim.setup?.model?1:frame.wheels[i].radius/.35);rotors[i].rotation.x=frame.wheels[i].spin;});
     physicalLinks.forEach((m,i)=>{
-      const link=frame.links[i];m.visible=!!link;if(!link)return;
+      const link=frame.links[i];m.visible=!!link&&link.kind!=='leaf-guide';if(!m.visible)return;
       const bracket=link.kind==='mount';m.geometry=bracket?bracketGeometry:cylinder;m.material=bracket?dark:metal;
       m.userData.radius=link.kind==='upright'?.043:link.kind==='trailing'?.036:.028;
       between(m,from(link.a),from(link.b));
@@ -153,7 +157,9 @@ export function makeCar(scene) {
     torsionBeam.visible=frame.torsion?.length===2;if(torsionBeam.visible)between(torsionBeam,from(frame.torsion[0]),from(frame.torsion[1]));
     frame.springs.forEach((spring,i)=>{
       const s=springs[i],bottom=from(spring.bottom),top=from(spring.top);
-      springPosition(s,bottom,top,sim.wheelParts[i].kind==='solid'?.18:0);
+      springPosition(s,bottom,top,spring.leaf?.18:sim.wheelParts[i].kind==='torsion'?.15:0);
+      s.coil.visible=!spring.leaf;s.mounts.forEach(m=>m.visible=!spring.leaf);
+      if(sim.setup){s.coil.scale.x=s.coil.scale.z=sim.radius/.35*.80;}
       s.bypassDamper.visible=s.bypassPiston.visible=s.reservoir.visible=spring.bypass;
       if(spring.bypass){
         const offset=vec(0,0,.24).applyQuaternion(body.quaternion),b=bottom.clone().add(offset),t=top.clone().add(offset);
@@ -161,6 +167,7 @@ export function makeCar(scene) {
         s.reservoir.position.copy(t).add(vec(.10,0,0).applyQuaternion(body.quaternion));s.reservoir.quaternion.copy(s.coil.quaternion);
       }
     });
+    detail.update(sim,frame);
     return frame;
   }
   function cutaway(enabled){
@@ -168,7 +175,7 @@ export function makeCar(scene) {
     // Fade bodywork while keeping structural parts, coils and dampers opaque.
     for(const m of [...shells,...windows]) {
       if(!m.userData.ownMaterial){m.material=m.material.clone();m.userData.ownMaterial=true;}
-      m.material.transparent=enabled;m.material.opacity=enabled?(windows.includes(m)?.10:.16):1;
+      m.material.transparent=enabled||windows.includes(m);m.material.opacity=enabled?(windows.includes(m)?.07:.12):windows.includes(m)?.78:1;
       m.material.depthWrite=!enabled;m.castShadow=!enabled;m.material.needsUpdate=true;
     }
   }

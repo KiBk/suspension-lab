@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Suspension, CORNERS, PULL_POINTS, STEP } from './physics.js';
 import { makeCar } from './model.js';
+import {loadVehicleAsset} from './car-assets.js';
 import { SETUPS, SETUP_ORDER, cycleSetup } from './setups.js';
 import { TERRAINS } from './terrain.js';
 import { makeRoadView } from './road-view.js';
@@ -10,7 +11,7 @@ import { DrivingInput } from './driving-input.js';
 import { VehicleAudio } from './sound.js';
 
 const SPAWN_HEIGHT=.70;
-const $=id=>document.getElementById(id), sim=new Suspension('baja'), drivingInput=new DrivingInput();
+const $=id=>document.getElementById(id), sim=new Suspension(SETUP_ORDER[0]), drivingInput=new DrivingInput();
 const sound=new VehicleAudio(),cameraRight=new THREE.Vector3();
 const viewport=$('viewport');
 let renderer;
@@ -23,9 +24,13 @@ const scene=new THREE.Scene();scene.fog=new THREE.Fog('#f0f0e8',17,35);
 const camera=new THREE.PerspectiveCamera(35,1,.1,60);
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true;controls.dampingFactor=.07;controls.enablePan=false;
-controls.minDistance=5.8;controls.maxDistance=16;controls.maxPolarAngle=Math.PI*.49;controls.minPolarAngle=.22;controls.autoRotateSpeed=.65;
+controls.minDistance=4.2;controls.maxDistance=16;controls.maxPolarAngle=Math.PI*.49;controls.minPolarAngle=.22;controls.autoRotateSpeed=.65;
 controls.target.set(0,.85,0);
-function resetCamera(){camera.position.set(sim.x+6.5,4.6,sim.z+7.7);controls.target.set(sim.x,.85,sim.z);controls.update();}
+let cameraSetup=null;
+function resetCamera(){
+  const target=new THREE.Vector3(sim.x,sim.setup.height*.28,sim.z),direction=cameraSetup?camera.position.clone().sub(controls.target).normalize():new THREE.Vector3(6.5,3.8,7.7).normalize();
+  controls.target.copy(target);camera.position.copy(target).addScaledVector(direction,sim.setup.length*1.75+1.2);cameraSetup=sim.setupId;controls.update();
+}
 resetCamera();
 scene.add(new THREE.HemisphereLight('#fffef0','#809477',3));
 const key=new THREE.DirectionalLight('#fff4e3',4.8);key.position.set(4,9,5);key.castShadow=true;
@@ -33,6 +38,7 @@ key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-6,right
 const fill=new THREE.DirectionalLight('#e8f1ff',2);fill.position.set(-5,4,-3);scene.add(fill);
 const floor=new THREE.Mesh(new THREE.PlaneGeometry(180,180),new THREE.MeshStandardMaterial({color:'#edeee5',roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=-.035;floor.receiveShadow=true;scene.add(floor);
 const roadView=makeRoadView(scene,renderer),turntable=roadView.group;
+try{await loadVehicleAsset(sim.setupId);}catch(error){$('loading').textContent='The car model could not load. Reload to try again.';throw error;}
 const car=makeCar(scene);
 let paused=false,slow=false,accumulator=0,last=performance.now(),dragPointer=null,dragStartY=0,dragHeight=0,dragScale=.008;
 let uiTimer=0,hoverPointer=null,activeTarget=null;
@@ -135,7 +141,7 @@ $('reset').addEventListener('click',()=>{endDrag();clearDrivingInput();sim.reset
 function setCutaway(enabled){$('cutaway').setAttribute('aria-pressed',String(enabled));car.cutaway(enabled);}
 $('cutaway').addEventListener('click',()=>setCutaway($('cutaway').getAttribute('aria-pressed')!=='true'));
 function setupUI(){
-  const cfg=SETUPS[sim.setupId];
+  const cfg=SETUPS[sim.setupId];if(cameraSetup!==sim.setupId)resetCamera();
   $('design-kind').textContent=cfg.tag;$('design-name').textContent=cfg.name;$('design-description').textContent=cfg.description;
   $('setup-name').textContent=cfg.name;$('setup-index').textContent=`${SETUP_ORDER.indexOf(sim.setupId)+1} / ${SETUP_ORDER.length}`;
   $('setup-specs').textContent=`${Math.round(sim.totalMass).toLocaleString('en-US')} kg · ${Math.round((cfg.bump+cfg.droop)*1000)} mm travel · ${cfg.drive.length===4?'AWD':cfg.drive[0]===0?'FWD':'RWD'}`;
@@ -145,10 +151,13 @@ function setupUI(){
   keyboardTargets.forEach(t=>{if(t.kind==='body')t.anchor.copy(sim.pullAnchor(t.index));});
   car.update(sim);roadView.update(sim);floor.position.y=sim.terrainType==='flat'?-.035:-.35;
 }
-function changeSetup(id,terrain){
-  endDrag();clearDrivingInput();if(terrain)sim.setTerrain(terrain);else sim.setSetup(id);
+let changing=false;
+async function changeSetup(id,terrain){
+  if(changing)return;changing=true;endDrag();clearDrivingInput();
+  if(id){$('setup-prev').disabled=$('setup-next').disabled=true;try{await loadVehicleAsset(id);}catch(error){$('gesture-message').textContent='This model could not load. Try selecting it again.';changing=false;$('setup-prev').disabled=$('setup-next').disabled=false;return;}}
+  if(terrain)sim.setTerrain(terrain);else sim.setSetup(id);
   sim.drop(SPAWN_HEIGHT);sound.reset();updateDriveUI();accumulator=0;last=performance.now();fault=false;
-  setupUI();setPaused(false);telemetry();
+  setupUI();setPaused(false);telemetry();changing=false;$('setup-prev').disabled=$('setup-next').disabled=false;
 }
 $('setup-prev').addEventListener('click',()=>changeSetup(cycleSetup(sim.setupId,-1)));
 $('setup-next').addEventListener('click',()=>changeSetup(cycleSetup(sim.setupId,1)));

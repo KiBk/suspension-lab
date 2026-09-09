@@ -32,3 +32,8 @@ public/bodywork.js
 public/setups.js
 public/terrain.js
 public/road-view.js
+
+public/car-assets.js
+public/car-dimensions.js
+public/mechanical-detail.js
+public/assets/

@@ -30,7 +30,7 @@ test('all vehicle setups drive over gravel and rough ground with real tyre loads
 });
 
 test('rough-road forces vanish while airborne, and terrain phase survives rebasing',()=>{
-  const s=new Suspension('baja');s.setTerrain('rough');
+  const s=new Suspension('suv');s.setTerrain('rough');
   try{s.drop(2);s.setDriving(true);for(const b of s.dynamic)b.setLinvel({x:200,y:0,z:200},true);for(const t of s.tyres)t.omega=200/s.radius;
     let rebased=false;for(let i=0;i<130;i++){s.step();if(s.worldOrigin.x!==0)rebased=true;if(i<120)for(const t of s.tyres){assert.equal(t.load,0);assert.equal(t.force.length(),0);}}
     assert.ok(rebased,'fast airborne travel must cross the rebase threshold');
