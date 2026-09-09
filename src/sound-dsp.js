@@ -1,4 +1,5 @@
 // Shared by the AudioWorklet and offline listening/regression renders.
+import {EngineDSP} from './engine-dsp.js';
 // Four independent, noise-excited voices: rubber, tread, oil flow and mounts.
 const TAU=Math.PI*2,clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const gainKeys=['roll','flow','creak','scrub','squeal'];
@@ -24,9 +25,12 @@ export class VehicleDSP {
       squeal:[new Band(),new Band(),new Band()],events:[],
     }));
     this.dc=[0,0];this.last=[0,0];
+    this.engine=new EngineDSP(sampleRate);this.engineFrame=null;
   }
-  setFrame({voices=[],events=[],rate=1,active=true,reset=false}){
+  setFrame({voices=[],events=[],engine=null,rate=1,active=true,reset=false}){
     this.age=0;this.rate=clamp(rate,.25,1);this.active=active;
+    if(engine)this.engineFrame=engine;
+    else if(active)this.engineFrame=null;
     for(let i=0;i<4;i++){
       const v=this.voices[i];v.target={...quiet(),...voices[i]};
       if(reset||!active)v.events=[];
@@ -43,6 +47,7 @@ export class VehicleDSP {
     const active=this.active&&this.age<sr*.3;
     const pinkA=1-Math.exp(-TAU*450*rate/sr),airA=1-Math.exp(-TAU*3000*rate/sr),treadDecay=Math.exp(-step/.0018);
     const dcA=Math.exp(-TAU*24/sr);
+    this.engine.prepare(this.engineFrame,active,rate);
     for(let i=0;i<4;i++){
       const v=this.voices[i],t=v.target;
       // Muted oil movement inside the damper, without a bright exposed hiss.
@@ -96,6 +101,8 @@ export class VehicleDSP {
         const pan=clamp(a.pan,-1,1),gain=a.gain;
         l+=out*Math.sqrt((1-pan)*.5)*gain;r+=out*Math.sqrt((1+pan)*.5)*gain;
       }
+      const engine=this.engine.tick(),enginePan=clamp(this.engine.pan,-1,1);
+      l+=engine*Math.sqrt((1-enginePan)*.5);r+=engine*Math.sqrt((1+enginePan)*.5);
       // Remove DC/subsonics and leave generous headroom for simultaneous landings.
       for(let c=0;c<2;c++){
         const x=c?r:l,y=x-this.last[c]+dcA*this.dc[c];this.last[c]=x;this.dc[c]=y;

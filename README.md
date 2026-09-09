@@ -17,9 +17,10 @@ and scroll/pinch to zoom. The camera and display circle follow horizontal motion
 without following vertical falls. The grid scrolls with actual ground travel.
 
 Arrow keys accelerate, brake/reverse and steer; on-screen arrows support touch.
-Releasing the keys allows tyre rolling resistance to slow the car. Reset and
+Releasing the keys slows the car through tyre rolling resistance, air drag and
+engine braking (regeneration in the electric sedan). Reset and
 initial loading start a 70 cm drop. Cutaway, orbit, pause, quarter speed and sound
-remain in the compact control dock. Sound starts muted, with no engine layer.
+remain in the compact control dock. Sound starts muted; each car has its own engine or electric motor voice.
 Keyboard lifting: Tab to a body zone/wheel, hold Shift + Up/Down, then release.
 
 ## Cars and mechanisms
@@ -28,7 +29,7 @@ Keyboard lifting: Tab to a body zone/wheel, hold Shift + Up/Down, then release.
 | --- | --- | --- | --- |
 | City compact | MacPherson | Torsion beam | Front |
 | Hatchback | MacPherson | Torsion beam | Front |
-| Sedan | MacPherson | Five-link independent | Rear |
+| Electric sedan | MacPherson | Five-link independent | Rear |
 | Family wagon | MacPherson | Five-link independent | Front |
 | Grand touring coupe | MacPherson | Five-link independent | Rear |
 | Sports car | Double wishbone | Five-link independent | Rear |
@@ -66,7 +67,7 @@ below are in the original mesh frame, before its 20–35 mm ride adjustment.
 | --- | ---: | ---: | --- |
 | City compact | 840 mm | 880 mm | Inboard front strut towers; low rear coils on trailing-arm pans |
 | Hatchback | 930 mm | 1,010 mm | Bonnet-height front bearings; separate wheelhouse rear shocks |
-| Sedan | 905 mm | 970 mm | Front inner-wing towers; rear coils on lower links, separate shocks |
+| Electric sedan | 905 mm | 970 mm | Front inner-wing towers; rear coils on lower links, separate shocks |
 | Family wagon | 910 mm | 970 mm | Front towers below bonnet; rear mounts below the cargo-side bodywork |
 | Grand touring coupe | 860 mm | 830 mm | Lower front towers and rear mounts below the low rear deck |
 | Sports car | 690 mm | 760 mm | Compact coilovers between lower arms and the low body decks |
@@ -105,7 +106,7 @@ and processed GLB files remain unchanged.
 | --- | ---: | ---: |
 | City compact | 80 / 100 mm | 80 / 110 mm |
 | Hatchback | 110 / 110 mm | 120 / 115 mm |
-| Sedan | 100 / 100 mm | 115 / 110 mm |
+| Electric sedan | 100 / 100 mm | 115 / 110 mm |
 | Family wagon | 105 / 110 mm | 120 / 120 mm |
 | Grand touring coupe | 75 / 75 mm | 85 / 90 mm |
 | Sports car | 45 / 50 mm | 55 / 60 mm |
@@ -126,6 +127,64 @@ leaves follow the guide endpoints. This is a lumped flexible-leaf approximation,
 not a finite-element spring pack. Rear torsion beams similarly use physical
 trailing arms with elastic roll coupling rather than distributed beam torsion.
 Steering uses virtual knuckles and Ackermann angles, with visible tie rods.
+
+## Engines and automatic drive
+
+| Car | Power | Engine / motor | Transmission |
+| --- | ---: | --- | --- |
+| City compact | 85 hp | 1.2 L inline-three | 4-speed automatic |
+| Hatchback | 135 hp | 1.6 L inline-four | 6-speed automatic |
+| Electric sedan | 300 hp / 224 kW | Single electric motor, 410 Nm | Single-speed reduction |
+| Family wagon | 180 hp | 2.0 L turbo inline-four | 8-speed automatic |
+| Grand touring coupe | 300 hp | 3.0 L inline-six | 8-speed automatic |
+| Sports car | 420 hp | 4.0 L flat-six | 7-speed automatic |
+| Family minivan | 170 hp | 2.0 L four-cylinder turbodiesel | 6-speed automatic |
+| SUV | 300 hp | 3.5 L V6 | 8-speed automatic |
+| Pickup | 240 hp | 4.7 L V8 | 5-speed automatic |
+| Off-road 4×4 | 160 hp | 2.8 L four-cylinder turbodiesel | 4-speed automatic |
+
+These are illustrative engines chosen for the fictional designs. Horsepower is
+mechanical hp at the crank (or motor shaft), before driveline losses. Combustion
+torque curves are normalized to the stated power; the electric motor has a
+constant-torque region followed by a constant-power region. The sedan's mass is
+1,850 kg to allow for its battery. No battery charge/thermal model is simulated.
+
+`src/drivetrain.js` replaces the old constant acceleration force with torque at
+the driven wheels, final-drive ratios and transmission losses. RPM follows mean
+driven-wheel speed, including wheelspin. The reduced automatic model includes
+launch slip, power-bounded converter torque multiplication, finite shifts,
+road-speed shift scheduling, hysteresis, kickdown, a rev limiter and overrun braking. The EV uses one
+reduction ratio in either direction, with regenerative slowing on lift-off.
+There is no traction control or ABS: open-differential torque sharing leaves
+wheelspin possible, and enough brake pressure locks the tyres. Pressing the
+opposite direction brakes first and engages reverse only near a stop.
+
+Road load includes contact-dependent rolling loss and quadratic aerodynamic
+drag. The small readout shows gear and RPM; every setup lists its power and
+transmission without extra driving selectors. These are reduced educational
+models, not a calibrated converter, clutch, differential or production gearbox.
+Engine rotational inertia is approximated by a finite RPM response; torsional
+shaft dynamics, battery state and real engine maps are not modeled. Background:
+[MathWorks automatic transmission example](https://www.mathworks.com/help/simulink/slref/modeling-an-automatic-transmission-controller.html).
+
+The combustion DSP fires one pulse per cylinder per two crank revolutions,
+with cylinder/bank variation, intake/exhaust resonances and quiet diesel
+mechanical texture. The V8 has an uneven bank pulse balance; the sports six has
+a brighter intake. RPM, load and shifting alter the sound continuously. The
+sedan has a subdued speed/load-dependent motor whine and is silent at rest.
+These are procedural interpretations, not recordings of particular engines.
+[Firing-cycle reference](https://www.mathworks.com/help/simulink/slref/modeling-engine-timing-using-triggered-subsystems.html).
+
+Generate reproducible ten-second idle / acceleration / overrun listening previews:
+
+```sh
+node scripts/render-engines.mjs
+```
+
+WAVs and RPM/gear/mix metrics are written under ignored `evidence/engines/`.
+Regression tests check the power curves, real 0–100 km/h runs, shifts/kickdown,
+reverse interlocks, brake locking, wheelspin, airborne grabs, EV regeneration,
+and audio at normal/quarter speed with mute and stale-frame fades.
 
 ## Imported sources and processing
 
@@ -168,12 +227,13 @@ Tyres use a transient brush response, longitudinal slip, load-sensitive grip,
 a combined-slip friction circle and wheel inertia. Tyre friction remains active
 during parked drops, resisting sideways scrub as the suspension moves. Rolling
 resistance depends on contact load and fades smoothly near rest. Airborne tyres
-have no road forces. Aerodynamic drag, carcass deformation, camber thrust,
+have no road forces. Carcass deformation, camber thrust,
 self-aligning torque, loose stones and deformable soil are omitted.
 
 Quiet procedural sound follows contact load, slip, damper speed and impacts.
 Suspension noise stays below tyre sounds, rolling hiss is heavily attenuated,
-and there is no engine or wind track. Quarter speed stretches the audio with
+and a restrained engine/motor layer follows actual drivetrain RPM and load.
+There is no added wind track. Quarter speed stretches the audio with
 physics. Mute, pause and hidden tabs silence it. This is an educational simulation
 with illustrative physical and acoustic parameters, not an engineering tool.
 

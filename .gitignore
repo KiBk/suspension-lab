@@ -8,6 +8,9 @@ public/linkage.js
 .DS_Store
 public/tyres.js
 public/driving-input.js
+public/powertrains.js
+public/drivetrain.js
+public/engine-dsp.js
 public/sound.js
 public/sound-model.js
 public/sound-dsp.js

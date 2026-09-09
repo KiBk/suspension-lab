@@ -117,7 +117,7 @@ $('sound').addEventListener('click',async()=>{
   const button=$('sound');button.disabled=true;
   try{
     sound.setBlocked(paused||document.hidden);const enabled=await sound.toggle();
-    button.setAttribute('aria-pressed',String(enabled));button.setAttribute('aria-label',enabled?'Mute sounds':'Enable suspension and tyre sounds');
+    button.setAttribute('aria-pressed',String(enabled));button.setAttribute('aria-label',enabled?'Mute sounds':'Enable vehicle sounds');
   }catch(error){
     await sound.dispose();button.setAttribute('aria-pressed','false');button.setAttribute('aria-label','Retry enabling sounds');
     $('gesture-message').textContent='Sound could not start in this browser. You can keep exploring or try Sound again.';
@@ -152,6 +152,7 @@ function setupUI(){
   $('setup-name').textContent=cfg.name;$('setup-index').textContent=`${SETUP_ORDER.indexOf(sim.setupId)+1} / ${SETUP_ORDER.length}`;
   const travel=cfg.travel.bump.map((b,i)=>Math.round((b+cfg.travel.droop[i])*1000));
   $('setup-specs').textContent=`${Math.round(sim.totalMass).toLocaleString('en-US')} kg · ${travel.join(' / ')} mm F/R travel · ${cfg.drive.length===4?'AWD':cfg.drive[0]===0?'FWD':'RWD'}`;
+  $('powertrain-specs').textContent=`${cfg.powertrain.hp} hp · ${cfg.powertrain.label} · ${cfg.powertrain.electric?'single-speed':`${cfg.powertrain.gears.length}-speed auto`}`;
   $('vehicle-mass').textContent=`${Math.round(sim.totalMass).toLocaleString('en-US')} kg`;
   $('terrain-description').textContent=TERRAINS[sim.terrainType].description;
   document.querySelectorAll('[data-terrain]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.terrain===sim.terrainType)));
@@ -191,6 +192,11 @@ function telemetry(){
     travelNodes[i].bar.style.width=`${THREE.MathUtils.clamp(amount,0,1)*100}%`;travelNodes[i].bar.classList.toggle('air',!w.contact);travelNodes[i].bar.classList.toggle('sliding',sim.driving&&tyre.usage>.97);
   });
   $('speed-value').textContent=`${Math.round(sim.groundSpeed*3.6)} km/h`;
+  const powertrain=state.powertrain,gear=powertrain?.gear??'N';
+  $('gear-value').textContent=sim.setup.powertrain.electric?(gear==='R'?'R':'EV'):['N','R'].includes(gear)?gear:`D${gear}`;
+  $('rpm-value').textContent=powertrain?`${Math.round(powertrain.rpm/50)*50} rpm`:'';
+  $('rpm-bar').style.width=`${powertrain?THREE.MathUtils.clamp(powertrain.rpm/sim.setup.powertrain.redline,0,1)*100:0}%`;
+  $('gear-value').classList.toggle('shifting',powertrain?.shifting??false);
   $('cornering-value').textContent=`${Math.abs(sim.lateralG).toFixed(2)} g`;
   const slipping=state.tyres.some(t=>t.usage>.97);$('grip-state').textContent=slipping?'SLIDING':'GRIP';$('grip-state').classList.toggle('sliding',slipping);
   $('motion-label').textContent=sim.driving?`${Math.round(sim.groundSpeed*3.6)} km/h · ${Math.abs(sim.lateralG).toFixed(2)} g`:'ARROW KEYS TO DRIVE';

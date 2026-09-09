@@ -15,21 +15,24 @@ export function brushLateral(slip,load,grip=1){
   const u=Math.min(1,stiffness*Math.abs(t)/(3*limit));
   return -Math.sign(t)*limit*(3*u-3*u*u+u*u*u);
 }
-export function tyreStep(state,{load,longitudinal,lateral,torque,radius,dt,grip=1}){
+export function tyreStep(state,{load,longitudinal,lateral,torque,brakeTorque=0,radius,dt,grip=1}){
   const inertia=2.1,limit=gripLimit(load,grip);
+  // Brake impulse opposes the rotor, and stops at zero. This is a mechanical
+  // friction brake, with no slip target or ABS: enough pressure locks a tyre.
+  const rotate=fx=>{const free=state.omega+dt*(torque-radius*fx)/inertia,omega=Math.sign(free)*Math.max(0,Math.abs(free)-dt*brakeTorque/inertia);return {omega,brakeTorque:(free-omega)*inertia/dt};};
   const alpha=Math.atan2(lateral,Math.max(Math.abs(longitudinal),1.5));
   state.slip+=(alpha-state.slip)*(1-Math.exp(-dt*Math.max(Math.abs(longitudinal),1.5)/.35));
-  if(!limit){state.omega+=dt*torque/inertia;state.slip=0;return{longitudinal:0,lateral:0,limit:0,usage:0,slip:0};}
+  if(!limit){const rotation=rotate(0);state.omega=rotation.omega;state.slip=0;return{longitudinal:0,lateral:0,limit:0,usage:0,slip:0,brakeTorque:rotation.brakeTorque};}
   const fy=brushLateral(state.slip,load,grip),stiffness=65000*Math.pow(load/NOMINAL_LOAD,.85);
   // Implicit wheel-speed solve keeps the stiff low-speed slip response stable.
   const trial=fx=>{
-    const omega=state.omega+dt*(torque-radius*fx)/inertia;
+    const {omega}=rotate(fx);
     const tread=omega*radius,slip=(tread-longitudinal)/Math.max(Math.abs(longitudinal),Math.abs(tread),1.5);
     const raw=limit*Math.tanh(stiffness*slip/limit),scale=Math.max(1,Math.hypot(raw,fy)/limit);
     return{fx:raw/scale,fy:fy/scale};
   };
   let low=-limit,high=limit;
   for(let n=0;n<20;n++){const mid=(low+high)/2;if(mid>trial(mid).fx)high=mid;else low=mid;}
-  const fx=(low+high)/2,result=trial(fx);state.omega+=dt*(torque-radius*fx)/inertia;
-  return{longitudinal:fx,lateral:result.fy,limit,usage:Math.hypot(fx,result.fy)/limit,slip:state.slip};
+  const fx=(low+high)/2,result=trial(fx),rotation=rotate(fx);state.omega=rotation.omega;
+  return{longitudinal:fx,lateral:result.fy,limit,usage:Math.hypot(fx,result.fy)/limit,slip:state.slip,brakeTorque:rotation.brakeTorque};
 }

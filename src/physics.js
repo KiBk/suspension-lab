@@ -2,6 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { Vector3, Quaternion } from 'three';
 import { tyreStep, rollingResistance, SURFACES } from './tyres.js';
 import { SETUPS } from './setups.js';
+import { Drivetrain } from './drivetrain.js';
 import { suspensionMount } from './suspension-mounts.js';
 import { Road, TERRAINS } from './terrain.js';
 await RAPIER.init();
@@ -39,6 +40,7 @@ export class Suspension {
     this.world.numSolverIterations=16;this.world.numInternalPgsIterations=2;
     this.dynamic=[];this.links=[];this.leaves=[];this.jointChecks=[];this.springs=[];this.wheelParts=[];this.beams=[];this.drag=null;this.time=0;this.spin=0;this.solverBoostUntil=0;
     const cfg=this.setup=SETUPS[this.setupId]??null,baja=this.type==='baja';
+    this.drivetrain=cfg?new Drivetrain(cfg.powertrain,cfg.drive.reduce((r,i)=>r+cfg.wheels[i].radius,0)/cfg.drive.length):null;
     this.radius=cfg?.radius??(baja?.39:.35);this.rideHeight=cfg?.ride??(baja?1.18:.91);this.wheelbase=cfg?.wheelbase??2.72;
     this.corners=CORNERS.map((c,i)=>({...c,x:cfg?.wheels[i].position[0]??c.x,z:cfg?.wheels[i].position[2]??c.z*this.wheelbase/2.72}));this.torsionArms=[];
     const unsprung={macpherson:120,wishbone:108,multilink:132,solid:148,leaf:158,torsion:116};
@@ -316,6 +318,11 @@ export class Suspension {
     const chassisSide=V(chassisForward.z,0,-chassisForward.x),velocity=this.chassis.linvel();
     this.roadSpeed=V(velocity.x,0,velocity.z).dot(chassisForward);
     const target=this.driving?this.input.steer*.38:0;this.steering+=clamp(target-this.steering,-1.2*dt,1.2*dt);
+    const cfg=this.setup,drive=this.drivetrain?.step(dt,{enabled:this.driving,request:this.input.throttle,speed:this.roadSpeed,wheelOmega:cfg.drive.reduce((sum,i)=>sum+this.tyres[i].omega,0)/cfg.drive.length});
+    if(cfg&&this.driving){
+      const airspeed=Math.hypot(velocity.x,velocity.z);
+      this.chassis.addForce(V(velocity.x,0,velocity.z).multiplyScalar(-.5*1.225*cfg.powertrain.dragArea*airspeed),true);
+    }
     let lateralForce=0;
     for(let i=0;i<4;i++){
       const w=this.wheelParts[i],t=this.tyres[i],hub=at(w.body,w.local);let load=0,contact=false;const normal=V();
@@ -339,9 +346,9 @@ export class Suspension {
       const pv=w.body.velocityAtPoint(patch),v=V(pv.x,pv.y,pv.z),hubVelocity=w.body.velocityAtPoint(hub);
       // Read-only acoustic telemetry at the same contact used by the tyre model.
       t.contact=contact;t.longitudinal=v.dot(forward);t.lateral=v.dot(side);t.verticalSpeed=hubVelocity.y;
-      const cfg=this.setup,braking=cfg&&this.input.throttle*this.roadSpeed<0&&Math.abs(this.roadSpeed)>1,driven=cfg&&!braking?cfg.drive:[0,1,2,3];
-      const torque=this.driving&&driven.includes(i)?this.input.throttle*(this.totalMass||1500)*(cfg?.acceleration??2.8)/driven.length*w.radius:0;
-      const result=tyreStep(t,{load:t.load,longitudinal:v.dot(forward),lateral:v.dot(side),torque,radius:w.radius,dt,grip:SURFACES[this.surface].grip*TERRAINS[this.terrainType].grip*(cfg?.grip??1)});
+      const torque=drive?(cfg.drive.includes(i)?drive.wheelTorque/cfg.drive.length:0):this.driving?this.input.throttle*(this.totalMass||1500)*2.8/4*w.radius:0;
+      const brakeTorque=drive?drive.brake*(this.totalMass||cfg.mass)*9.81*1.4*w.radius*(i<2?.65:.35)/2:0;
+      const result=tyreStep(t,{load:t.load,longitudinal:v.dot(forward),lateral:v.dot(side),torque,brakeTorque,radius:w.radius,dt,grip:SURFACES[this.surface].grip*TERRAINS[this.terrainType].grip*(cfg?.grip??1)});
       t.rollingResistance=rollingResistance(V(hubVelocity.x,hubVelocity.y,hubVelocity.z).dot(forward),t.load,(cfg?.rolling??(this.type==='baja'?.018:.012))*TERRAINS[this.terrainType].rolling);
       t.force.copy(forward).multiplyScalar(result.longitudinal+t.rollingResistance).addScaledVector(side,result.lateral);t.usage=result.usage;
       if(contact){
@@ -350,7 +357,7 @@ export class Suspension {
         // is transmitted through its bearing to the suspension upright.
         w.body.addForceAtPoint(forward.clone().multiplyScalar(result.longitudinal+t.rollingResistance),hub,true);
       }else t.force.set(0,0,0);
-      w.body.addTorque(V(1,0,0).applyQuaternion(wheelQ).multiplyScalar(-torque),true);
+      w.body.addTorque(V(1,0,0).applyQuaternion(wheelQ).multiplyScalar(-torque+(result.brakeTorque??0)),true);
       lateralForce+=t.force.dot(chassisSide);t.spin=(t.spin+t.omega*dt)%(Math.PI*2);
     }
     this.lateralG=lateralForce/((this.totalMass||1500)*9.81);
@@ -476,6 +483,6 @@ export class Suspension {
       beams:this.beams.map(b=>({a:at(b.body,V(b.half,0,0)),b:at(b.body,V(-b.half,0,0)),rotation:b.body.rotation()}))};
   }
   constraintError(){let error=0;for(const j of this.jointChecks)error=Math.max(error,at(j.a,j.p).distanceTo(at(j.b,j.q)));return error;}
-  snapshot(){return{setup:this.setupId,terrain:this.terrainType,type:this.type,surface:this.surface,x:this.x,y:this.y,z:this.z,pitch:this.pitch,roll:this.roll,velocity:this.vy,dragging:this.drag?.i??(this.drag?'body':null),gripKind:this.drag?.kind??null,driving:this.driving,speed:this.groundSpeed,longitudinalSpeed:this.roadSpeed,steering:this.steering,lateralG:this.lateralG,tyres:this.tyres?.map(t=>({load:t.load,usage:t.usage,slip:t.slip,force:t.force.toArray(),omega:t.omega}))??[],wheels:this.wheels.map(w=>({...w})),constraintError:this.constraintError()};}
+  snapshot(){return{powertrain:this.drivetrain?.snapshot()??null,setup:this.setupId,terrain:this.terrainType,type:this.type,surface:this.surface,x:this.x,y:this.y,z:this.z,pitch:this.pitch,roll:this.roll,velocity:this.vy,dragging:this.drag?.i??(this.drag?'body':null),gripKind:this.drag?.kind??null,driving:this.driving,speed:this.groundSpeed,longitudinalSpeed:this.roadSpeed,steering:this.steering,lateralG:this.lateralG,tyres:this.tyres?.map(t=>({load:t.load,usage:t.usage,slip:t.slip,force:t.force.toArray(),omega:t.omega}))??[],wheels:this.wheels.map(w=>({...w})),constraintError:this.constraintError()};}
   free(){this.road.events?.free();this.world.free();}
 }

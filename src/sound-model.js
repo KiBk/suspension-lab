@@ -3,9 +3,10 @@ const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
 const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a));return t*t*(3-2*t);};
 export class SoundModel {
   constructor(){this.reset();}
-  reset(){this.previous=[];this.events=[];this.voices=[];this.world=null;}
+  reset(){this.previous=[];this.events=[];this.voices=[];this.engine=null;this.world=null;}
   sample(sim,dt){
     if(this.world!==sim.world){this.reset();this.world=sim.world;}
+    this.engine=sim.drivetrain?.snapshot()??null;
     const surface=sim.surface,wet=surface==='wet',ice=surface==='ice';
     this.voices=sim.tyres.map((t,i)=>{
       const s=sim.springs.find(s=>s.index===i),length=s.length??s.rest;

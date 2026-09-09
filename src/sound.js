@@ -37,7 +37,8 @@ export class VehicleAudio {
       const p=frame.wheels[i].position,c=frame.position;
       return {...voice,pan:Math.max(-.85,Math.min(.85,((p.x-c.x)*right.x+(p.y-c.y)*right.y+(p.z-c.z)*right.z)/2.5)),gain};
     });
-    this.node.port.postMessage({voices,events:this.model.drain(),rate,active:true});
+    const engine=this.model.engine?{...this.model.engine,gain,pan:0}:null;
+    this.node.port.postMessage({voices,engine,events:this.model.drain(),rate,active:true});
   }
   async dispose(){this.enabled=false;++this.generation;this.node?.disconnect();await this.context?.close();this.context=null;this.node=null;}
 }

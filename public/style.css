@@ -36,3 +36,10 @@ main{display:block;height:calc(100dvh - 132px);min-height:580px;max-width:1800px
 @media(max-width:760px){.setup-row{display:block;padding:0 3px 5px}.setup-picker{min-width:0}.setup-picker>div{gap:12px}.terrain-options{border:0;padding:3px 0 0;justify-content:center}.terrain-options button{flex:1;padding:7px 5px}.design-summary{width:auto;top:188px}.design-summary .terrain-description{display:none}.design-summary .setup-specs{font-size:8px;margin-top:7px}#gesture-message{bottom:246px}.keyboard-grip:focus-visible{bottom:300px}.scene-footer{font-size:7px}}
 
 .page-footer a{color:inherit;text-underline-offset:3px}
+
+/* Compact powertrain telemetry stays beside speed, without extra selectors. */
+.powertrain-specs{font:9px var(--mono);color:#a15b36;line-height:1.7;margin-top:5px!important}
+.powertrain-readout{display:grid!important;grid-template-columns:24px auto;gap:2px 5px;min-width:93px;align-items:center}
+#gear-value{grid-row:1/3;font:16px var(--mono);color:var(--orange);transition:opacity .1s}#gear-value.shifting{opacity:.5}
+#rpm-value{font:9px var(--mono);font-variant-numeric:tabular-nums}.rpm-track{display:block;height:2px;background:#e2e3d9;width:65px}.rpm-track i{display:block;height:100%;width:0;background:var(--orange)}
+@media(max-width:760px){.powertrain-specs{font-size:8px}.drive-readout{gap:10px}.powertrain-readout{min-width:88px}.drive-readout #rpm-value{font-size:8px}}
