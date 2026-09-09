@@ -2,9 +2,10 @@
 
 Interactive car suspension playground at https://suspension-lab.apps.kibk.net.
 
-Opening the page or pressing Reset spawns the car 35 cm above its settled pose,
+Opening the page or pressing Reset spawns the car 70 cm above its settled pose,
 so gravity produces a short fall, landing and suspension rebound. Reset clears
-driving motion and preserves the selected suspension, surface and quarter speed.
+driving motion and preserves the selected suspension and quarter speed.
+The app uses a single dry-road surface, with no surface selector.
 
 Choose one of four suspension buttons beside the view controls. Grab the car's
 actual surfaces: front/rear corners tilt that corner, the ends allow pitch, and
@@ -44,8 +45,8 @@ Loaded tyres produce rolling noise with irregular tread pitches (coarser for
 Baja), low-speed scrub and increasing friction noise/squeal under combined slip.
 These use the same contact velocity, wheel rotation, load and grip usage as the
 tyre physics, including sideways scrub during a stationary drop. Airborne tyres
-have no road noise. Wet tyres have more hiss and less squeal; ice is quieter.
-These acoustic surface settings are illustrative, not measured datasets.
+have no road noise. The browser uses the dry-road mix; offline tests retain
+wet and ice variants for tyre-model comparisons. These settings are illustrative.
 Rolling sits in the background: its mix gain is reduced to one quarter, the
 bright air-pumping component is heavily attenuated, and a 550 Hz low-pass filter
 softens the remaining hiss. There is no separate wind track. Suspension and
@@ -105,6 +106,12 @@ An infinite collision plane provides an exactly vertical road normal at every
 heading, preventing false sloped contacts from a large box-shaped ground.
 The drawing follows the physical body transforms and linkage endpoints.
 
+Live axles have firm compression and droop limits at both spring seats, measured
+along the chassis vertical. They prevent the linkage from folding above the
+body during hard drops and fast presses, while leaving lateral/longitudinal
+linkage motion and axle articulation free. Rapier 0.20's per-axis generic limits
+are configured through its raw joint-set API; no body positions are clamped.
+
 The 1,180 kg chassis has explicit rotational inertia. Wheel carriers, arms,
 struts and axle beams add mass, giving totals of 1,452 kg (MacPherson), 1,460 kg
 (wishbone), 1,540 kg (solid axle) and 1,500 kg (Baja). Suspension tuning differs
@@ -139,6 +146,10 @@ arrow input can also start driving while a grab is already held. Reset stops
 driving and starts the short spawn drop. Quarter speed also slows the driving physics. Speed,
 lateral acceleration, grip saturation and the four wheel loads make weight
 transfer visible. The empty world rebases periodically for continuous driving.
+Displayed speed is the magnitude of chassis velocity across the ground plane,
+matching the circle's movement. It stays positive in reverse, during sideways
+slides and while tumbling; vertical lift/fall speed is excluded. The signed
+forward-speed projection is retained separately for physics diagnostics.
 Ground contact points are captured before a rebase and translated as complete
 points, keeping tyre forces at the wheels while solver contacts change frames.
 
@@ -161,11 +172,10 @@ no velocity clamp or global damping while driving; aerodynamic drag is omitted.
 The low-speed transition prevents resistance from driving the car backwards.
 Model reference: [MathWorks rolling resistance](https://www.mathworks.com/help/sdl/ref/rollingresistance.html).
 
-Dry, Wet and Ice use relative grip scales of 1, 0.60 and 0.12. They affect both
-cornering and wheel scrub during compression/rebound. The surface selection
-survives reset and suspension changes. A 0.75 m drop compresses independent
-suspensions farther on ice because lateral scrub meets less resistance; the
-fixed-track solid axle shows much less difference.
+The browser uses dry-road grip for both cornering and suspension scrub during
+compression/rebound. Offline tests also compare lower-grip variants: a 0.75 m
+drop compresses independent suspensions farther on ice because lateral scrub
+meets less resistance; the fixed-track solid axle shows much less difference.
 
 Front tyres steer with virtual knuckles and Ackermann angles. The drivetrain
 uses equal drive torque at all four wheels. These are illustrative parameters,

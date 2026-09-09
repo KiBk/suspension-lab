@@ -3,7 +3,23 @@ import assert from 'node:assert/strict';
 import {Suspension,TYPES,STEP} from '../src/physics.js';
 import {brushLateral,gripLimit,tyreStep,SURFACES} from '../src/tyres.js';
 import {DrivingInput} from '../src/driving-input.js';
+import {Quaternion,Vector3} from 'three';
 const advance=(s,time)=>{for(let k=0;k<Math.round(time/STEP);k++)s.step();};
+
+test('displayed ground speed stays absolute during reverse, sideways travel and flips',()=>{
+  const s=new Suspension();
+  try{
+    for(const axis of [new Vector3(1,0,0),new Vector3(0,1,0),new Vector3(0,0,1)])for(const angle of [0,Math.PI/2,Math.PI]){
+      s.chassis.setRotation(new Quaternion().setFromAxisAngle(axis,angle),true);
+      for(const sign of [-1,1]){
+        s.chassis.setLinvel({x:12*sign,y:40,z:5*sign},true);s.refresh();
+        assert.equal(s.groundSpeed,13);assert.equal(s.snapshot().speed,13);
+      }
+    }
+    s.chassis.setLinvel({x:0,y:-40,z:0},true);s.refresh();
+    assert.equal(s.snapshot().speed,0,'vertical falling must not count as platform motion');
+  }finally{s.free();}
+});
 
 test('brush grip opposes slip, saturates and is load-sensitive',()=>{
   for(const load of [300,1800,3600,8000])for(const slip of [.001,.04,.15,.6]){

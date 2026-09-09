@@ -93,7 +93,7 @@ test('repeated Baja lifts cannot fold the wishbones into the collapsed-wheel bra
 
 test('every suspension visibly rebounds after compression and then settles',()=>{
   for(const type of Object.keys(TYPES)){
-    const s=new Suspension();s.setType(type);s.drop(.35);const heights=[];
+    const s=new Suspension();s.setType(type);s.drop(.70);const heights=[];
     for(let k=0;k<1440;k++){s.step();heights.push(s.y);}
     let trough=70;for(let k=70;k<200;k++)if(heights[k]<heights[trough])trough=k;
     const rebound=Math.max(...heights.slice(trough,trough+170))-heights[trough];

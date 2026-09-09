@@ -34,7 +34,7 @@ export class Suspension {
     this.driving=false;this.input={throttle:0,steer:0};this.steering=0;this.roadSpeed=0;this.lateralG=0;this.rebasedPatches=null;this.worldOrigin={x:0,z:0};
     this.world?.free();this.world=new RAPIER.World({x:0,y:-9.81,z:0});this.world.timestep=STEP;
     this.world.numSolverIterations=16;this.world.numInternalPgsIterations=2;
-    this.dynamic=[];this.links=[];this.jointChecks=[];this.springs=[];this.wheelParts=[];this.beams=[];this.drag=null;this.time=0;this.spin=0;
+    this.dynamic=[];this.links=[];this.jointChecks=[];this.springs=[];this.wheelParts=[];this.beams=[];this.drag=null;this.time=0;this.spin=0;this.solverBoostUntil=0;
     const baja=this.type==='baja';this.radius=baja?.39:.35;this.rideHeight=baja?1.18:.91;
     // An exact plane keeps every road contact normal vertical. A large, thin
     // box produced spurious sloped contacts at diagonal headings, kicking the
@@ -127,7 +127,14 @@ export class Suspension {
         this.links.push({body:this.chassis,a:rail,b:mount,kind:'mount',length:rail.distanceTo(mount)});
       }
       const x=side*(baja?.92:.8);
-      this.spring(this.chassis,V(x,.12,z),body,V(x,0,0),i,baja?3600:3400,baja?.38:.33,baja?.42:.26,baja);
+      const top=V(x,.12,z),bottom=V(x,0,0);
+      const spring=this.spring(this.chassis,top,body,bottom,i,baja?3600:3400,baja?.38:.33,baja?.42:.26,baja);
+      // Firm bump/droop limits follow chassis vertical at each spring seat.
+      // Leave the other translations and all rotations free for articulation;
+      // a radial spring force alone can let the four-link fold above the body.
+      const stop=this.joint(RAPIER.JointData.generic(top,bottom,V(0,1,0),0),this.chassis,body,false);
+      // Rapier 0.20 exposes generic per-axis limits through its raw joint set.
+      this.world.impulseJoints.raw.jointSetLimits(stop.handle,RAPIER.JointAxis.LinX,-spring.max,-spring.min);
     }
   }
   setSurface(surface){if(!SURFACES[surface])throw new RangeError('Unknown grip surface');this.surface=surface;}
@@ -219,7 +226,7 @@ export class Suspension {
     const data=RAPIER.JointData.generic(ZERO,anchor,axis,mask);
     const joint=this.joint(data,hand,body,false);
     // Extra iterations keep fast grip impulses from opening the small links.
-    this.world.numSolverIterations=32;
+    this.world.numSolverIterations=this.beams.length?64:32;
     // Allow pushing below the settled body height, including after picking up
     // an airborne car. Bounds follow the part, rather than blocking at pickup.
     const minHeight=selection.kind==='wheel'?this.radius:Math.max(.05,p.y-body.translation().y+this.restHeight-.35);
@@ -235,10 +242,12 @@ export class Suspension {
     }
     d.target=clamp(height,min,d.maxHeight);
   }
-  release(){if(this.drag){this.world.removeRigidBody(this.drag.hand);this.drag=null;this.world.numSolverIterations=16;}}
+  release(){if(this.drag){this.world.removeRigidBody(this.drag.hand);this.drag=null;this.solverBoostUntil=this.time+1.2;}}
   drop(height=.75){this.release();this.dynamic.forEach(b=>{const p=b.translation();b.setTranslation({x:p.x,y:p.y+height,z:p.z},true);b.setLinvel(ZERO,true);b.setAngvel(ZERO,true);});this.refresh();}
   nudge(){this.chassis.applyTorqueImpulse({x:0,y:0,z:550},true);}
   step(dt=STEP,refresh=true){
+    // Keep the grip's extra accuracy through the first impact after release.
+    this.world.numSolverIterations=this.drag||this.time<this.solverBoostUntil?(this.beams.length?64:32):16;
     this.world.timestep=dt;
     for(const b of this.dynamic){b.resetForces(false);b.resetTorques(false);}
     for(const s of this.springs){
@@ -286,7 +295,10 @@ export class Suspension {
   refresh(){
     const p=this.chassis.translation(),q=Q(this.chassis.rotation()),forward=V(0,0,1).applyQuaternion(q),left=V(1,0,0).applyQuaternion(q);
     const e={x:-Math.atan2(forward.y,Math.hypot(forward.x,forward.z)),z:Math.atan2(left.y,Math.hypot(left.x,left.z))};
-    this.x=p.x;this.y=p.y;this.z=p.z;this.pitch=e.x;this.roll=e.z;this.vy=this.chassis.linvel().y;
+    const velocity=this.chassis.linvel();
+    this.x=p.x;this.y=p.y;this.z=p.z;this.pitch=e.x;this.roll=e.z;this.vy=velocity.y;
+    // The platform follows chassis X/Z, independent of heading or tumbling.
+    this.groundSpeed=Math.hypot(velocity.x,velocity.z);
     this.wheels=this.wheelParts.map((w,i)=>{const p=at(w.body,w.local),s=this.springs.find(s=>s.index===i),length=at(s.a,s.anchorA).distanceTo(at(s.b,s.anchorB));let contact=false;
       this.world.contactPair(w.collider,this.ground,m=>{if(m.numSolverContacts()>0)contact=true;});
       return{y:p.y,v:w.body.linvel().y,contact,force:s.force,compression:s.rest-length};});
@@ -299,6 +311,6 @@ export class Suspension {
       beams:this.beams.map(b=>({a:at(b.body,V(b.half,0,0)),b:at(b.body,V(-b.half,0,0)),rotation:b.body.rotation()}))};
   }
   constraintError(){let error=0;for(const j of this.jointChecks)error=Math.max(error,at(j.a,j.p).distanceTo(at(j.b,j.q)));return error;}
-  snapshot(){return{type:this.type,surface:this.surface,x:this.x,y:this.y,z:this.z,pitch:this.pitch,roll:this.roll,velocity:this.vy,dragging:this.drag?.i??(this.drag?'body':null),gripKind:this.drag?.kind??null,driving:this.driving,speed:this.roadSpeed,steering:this.steering,lateralG:this.lateralG,tyres:this.tyres?.map(t=>({load:t.load,usage:t.usage,slip:t.slip,force:t.force.toArray(),omega:t.omega}))??[],wheels:this.wheels.map(w=>({...w})),constraintError:this.constraintError()};}
+  snapshot(){return{type:this.type,surface:this.surface,x:this.x,y:this.y,z:this.z,pitch:this.pitch,roll:this.roll,velocity:this.vy,dragging:this.drag?.i??(this.drag?'body':null),gripKind:this.drag?.kind??null,driving:this.driving,speed:this.groundSpeed,longitudinalSpeed:this.roadSpeed,steering:this.steering,lateralG:this.lateralG,tyres:this.tyres?.map(t=>({load:t.load,usage:t.usage,slip:t.slip,force:t.force.toArray(),omega:t.omega}))??[],wheels:this.wheels.map(w=>({...w})),constraintError:this.constraintError()};}
   free(){this.world.free();}
 }

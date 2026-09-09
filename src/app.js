@@ -6,7 +6,7 @@ import { followHorizontal } from './view.js';
 import { DrivingInput } from './driving-input.js';
 import { VehicleAudio } from './sound.js';
 
-const SPAWN_HEIGHT=.35;
+const SPAWN_HEIGHT=.70;
 const $=id=>document.getElementById(id), sim=new Suspension(), drivingInput=new DrivingInput();
 const sound=new VehicleAudio(),cameraRight=new THREE.Vector3();
 const viewport=$('viewport');
@@ -160,7 +160,6 @@ function selectDesign(type){
   setCutaway(true);setPaused(false);car.update(sim);telemetry();
 }
 document.querySelectorAll('[data-design]').forEach(b=>b.addEventListener('click',()=>selectDesign(b.dataset.design)));
-document.querySelectorAll('[data-surface]').forEach(b=>b.addEventListener('click',()=>{sim.setSurface(b.dataset.surface);document.querySelectorAll('[data-surface]').forEach(n=>n.setAttribute('aria-pressed',String(n===b)));}));
 $('vehicle-mass').textContent=`${Math.round(sim.totalMass).toLocaleString('en-US')} kg`;
 $('orbit').addEventListener('click',()=>{controls.autoRotate=!controls.autoRotate;$('orbit').setAttribute('aria-pressed',String(controls.autoRotate));});
 $('about-open').addEventListener('click',()=>{clearDrivingInput();$('about').showModal();});$('about-close').addEventListener('click',()=>$('about').close());
@@ -182,10 +181,10 @@ function telemetry(){
     const amount=sim.driving?tyre.load/(sim.totalMass*9.81/2):w.compression/.44;
     travelNodes[i].bar.style.width=`${THREE.MathUtils.clamp(amount,0,1)*100}%`;travelNodes[i].bar.classList.toggle('air',!w.contact);travelNodes[i].bar.classList.toggle('sliding',sim.driving&&tyre.usage>.97);
   });
-  $('speed-value').textContent=`${Math.round(sim.roadSpeed*3.6)} km/h`;
+  $('speed-value').textContent=`${Math.round(sim.groundSpeed*3.6)} km/h`;
   $('cornering-value').textContent=`${Math.abs(sim.lateralG).toFixed(2)} g`;
   const slipping=state.tyres.some(t=>t.usage>.97);$('grip-state').textContent=slipping?'SLIDING':'GRIP';$('grip-state').classList.toggle('sliding',slipping);
-  $('motion-label').textContent=sim.driving?`${Math.round(sim.roadSpeed*3.6)} km/h · ${Math.abs(sim.lateralG).toFixed(2)} g`:'ARROW KEYS TO DRIVE';
+  $('motion-label').textContent=sim.driving?`${Math.round(sim.groundSpeed*3.6)} km/h · ${Math.abs(sim.lateralG).toFixed(2)} g`:'ARROW KEYS TO DRIVE';
   $('pitch-value').textContent=`${THREE.MathUtils.radToDeg(sim.pitch).toFixed(1)}°`;$('roll-value').textContent=`${THREE.MathUtils.radToDeg(sim.roll).toFixed(1)}°`;
 }
 
