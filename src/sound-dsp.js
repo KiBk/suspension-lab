@@ -1,5 +1,6 @@
 // Shared by the AudioWorklet and offline listening/regression renders.
 import {EngineDSP} from './engine-dsp.js';
+import {RecordingLoop} from './recordings.js';
 // Four independent, noise-excited voices: rubber, tread, oil flow and mounts.
 const TAU=Math.PI*2,clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const gainKeys=['roll','flow','creak','scrub','squeal'];
@@ -22,10 +23,14 @@ export class VehicleDSP {
       target:quiet(),value:quiet(),noise:new Noise(73421+i*19237),pink:0,air:0,grain:0,
       suspensionLow:0,suspensionSoft:0,mountNoise:0,rollingLow:0,
       tread:0,pitch:1,treadStrength:0,flow:new Band(),rubber:new Band(),creak:new Band(),
-      squeal:[new Band(),new Band(),new Band()],events:[],
+      skid:null,events:[],
     }));
     this.dc=[0,0];this.last=[0,0];
     this.engine=new EngineDSP(sampleRate);this.engineFrame=null;
+  }
+  setRecordings(bank){
+    this.engine.setRecordings(bank);
+    this.voices.forEach((v,i)=>{v.skid=new RecordingLoop(bank['tyre-skid'],this.sampleRate,i*.237);});
   }
   setFrame({voices=[],events=[],engine=null,rate=1,active=true,reset=false}){
     this.age=0;this.rate=clamp(rate,.25,1);this.active=active;
@@ -46,6 +51,8 @@ export class VehicleDSP {
     const rollingA=1-Math.exp(-TAU*550*step);
     const active=this.active&&this.age<sr*.3;
     const pinkA=1-Math.exp(-TAU*450*rate/sr),airA=1-Math.exp(-TAU*3000*rate/sr),treadDecay=Math.exp(-step/.0018);
+    const skidSmooth=1-Math.exp(-1/(sr*.11));
+    const skidMix=1/Math.sqrt(Math.max(1,this.voices.reduce((sum,v)=>sum+clamp(v.target.squeal/.15,0,1),0)));
     const dcA=Math.exp(-TAU*24/sr);
     this.engine.prepare(this.engineFrame,active,rate);
     for(let i=0;i<4;i++){
@@ -54,14 +61,15 @@ export class VehicleDSP {
       v.flow.tune((t.compression?340:260)*rate,.6,sr);
       v.rubber.tune((220+Math.min(t.speed,60)*5)*rate,.85,sr);
       v.creak.tune((115+i*9)*rate,.65,sr);
-      const wobble=1+.024*Math.sin(this.clock*13.7+i*2)+.011*v.noise.next();
-      [790,1130,1620].forEach((f,k)=>v.squeal[k].tune(f*(1+i*.037)*rate*wobble,8+k*3,sr));
+      // Retain the established random sequence for rolling, suspension and
+      // impact textures when replacing the former generated squeal bands.
+      v.noise.next();
     }
     for(let n=0;n<left.length;n++){
       let l=0,r=0;
       for(const v of this.voices){
         const a=v.value,t=v.target;
-        for(const key of gainKeys)a[key]+=((active?t[key]:0)-a[key])*(key==='flow'||key==='creak'?suspensionSmooth:smooth);
+        for(const key of gainKeys)a[key]+=((active?t[key]:0)-a[key])*(key==='flow'||key==='creak'?suspensionSmooth:key==='squeal'&&active?skidSmooth:smooth);
         a.pan+=(t.pan-a.pan)*smooth;a.gain+=(t.gain-a.gain)*smooth;
         const noise=v.noise.next();v.pink+=(noise-v.pink)*pinkA;
         v.air+=(noise-v.air)*airA;
@@ -83,8 +91,7 @@ export class VehicleDSP {
         v.mountNoise+=(noise-v.mountNoise)*mountA;
         out+=v.suspensionSoft;
         out+=a.scrub*(rubber*2.8+v.pink*.6);
-        let squeal=0;for(let k=0;k<3;k++)squeal+=v.squeal[k].tick(noise)*(k===0?1.8:1.1);
-        out+=a.squeal*(squeal*2.6+rubber*.55);
+        out+=a.squeal*(v.skid?.tick(rate*(.94+v.target.pan*.035))??0)*.30*skidMix;
         for(let j=v.events.length-1;j>=0;j--){
           const e=v.events[j],land=e.kind==='land',bump=e.kind==='bump',time=e.time;
           const decay=land?.085:bump?.024:.016,attack=1-Math.exp(-time/(land?.002:.004));

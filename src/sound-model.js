@@ -20,7 +20,9 @@ export class SoundModel {
       // Keep lateral suspension scrub; gate only the longitudinal contribution.
       const longSliding=smooth(.04,.12,slipRatio)*smooth(.55,.9,t.usage);
       const slip=Math.hypot(longSlip*longSliding,t.lateral??0);
-      const scrub=smooth(.025,.7,slip)*load;
+      // Preserve low-speed suspension scrub on landing. Once genuinely sliding
+      // along the road, keep this noisy friction layer beneath the recorded skid.
+      const scrub=smooth(.025,.7,slip)*load*(1-.82*smooth(2,7,speed));
       const sliding=smooth(.35,3.5,slip)*smooth(.55,.98,t.usage)*load;
       const previous=this.previous[i];
       if(previous){

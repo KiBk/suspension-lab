@@ -1,0 +1,198 @@
+{
+  "sampleRate": 24000,
+  "format": "mono PCM16 WAV",
+  "loops": [
+    {
+      "id": "petrol-idle",
+      "file": "loops/petrol-idle.wav",
+      "source": "petrol-run",
+      "segment": [
+        0.3,
+        1.8
+      ],
+      "rpm": 900,
+      "seconds": 1.43871,
+      "sha256": "2255743b18e6efeaac3e71731bbbee0471ba85d5c2b62cdfe8d48a87cea15914"
+    },
+    {
+      "id": "petrol-low",
+      "file": "loops/petrol-low.wav",
+      "source": "petrol-run",
+      "segment": [
+        2.7,
+        3.3
+      ],
+      "rpm": 2500,
+      "seconds": 0.48533,
+      "sha256": "ae792c30e7d9b87bd18023e278c35a3758a3852acd9ec4b94be60c0f2d0a4aed"
+    },
+    {
+      "id": "petrol-mid",
+      "file": "loops/petrol-mid.wav",
+      "source": "petrol-run",
+      "segment": [
+        8.1,
+        10.8
+      ],
+      "rpm": 4000,
+      "seconds": 2.52775,
+      "sha256": "b0358883fbdfb9afb3c8f2cb9f89ba3dde3aac3a59dc3d13d2dc0c013725d4a1"
+    },
+    {
+      "id": "petrol-high",
+      "file": "loops/petrol-high.wav",
+      "source": "petrol-run",
+      "segment": [
+        12.2,
+        14.6
+      ],
+      "rpm": 5400,
+      "seconds": 2.31188,
+      "sha256": "232162b77f596171ac1ecd3d643607d80e981d8e5d4a70d20fa9fe8c9075383d"
+    },
+    {
+      "id": "diesel-idle",
+      "file": "loops/diesel-idle.wav",
+      "source": "diesel-idle",
+      "segment": [
+        0.2,
+        2.9
+      ],
+      "rpm": 840,
+      "seconds": 2.58992,
+      "sha256": "627d4ff887fb87a29d658479b512b78e0bd36e12b490518f3e484744e1c1f037"
+    },
+    {
+      "id": "diesel-low",
+      "file": "loops/diesel-low.wav",
+      "source": "diesel-low",
+      "segment": [
+        0.15,
+        1.95
+      ],
+      "rpm": 1470,
+      "seconds": 1.68508,
+      "sha256": "739ab9bfca252a62dea2830ed38ceee6d9a77987d4ca0fce5a46927883e54bcf"
+    },
+    {
+      "id": "diesel-mid",
+      "file": "loops/diesel-mid.wav",
+      "source": "diesel-mid",
+      "segment": [
+        0.2,
+        2.6
+      ],
+      "rpm": 2010,
+      "seconds": 2.28512,
+      "sha256": "bc71d5d07bd8ecbf9722c4a5c04edc1710ceb20ae669c68c45e3e80f5c8a49e8"
+    },
+    {
+      "id": "diesel-high",
+      "file": "loops/diesel-high.wav",
+      "source": "diesel-high",
+      "segment": [
+        0.15,
+        1.85
+      ],
+      "rpm": 2550,
+      "seconds": 1.58117,
+      "sha256": "26637b59e56a117cdf26b5153ebd9e0faf60128d1d70c0707ab85835e43a3a76"
+    },
+    {
+      "id": "v8-idle",
+      "file": "loops/v8-idle.wav",
+      "source": "v8-run",
+      "segment": [
+        0.35,
+        1.9
+      ],
+      "rpm": 900,
+      "seconds": 1.43,
+      "sha256": "8d8dc439b1301d1a9825ac7edfdf1d13d2cc15811546504935f8e78abdae3557"
+    },
+    {
+      "id": "v8-low",
+      "file": "loops/v8-low.wav",
+      "source": "v8-run",
+      "segment": [
+        4.05,
+        4.95
+      ],
+      "rpm": 1800,
+      "seconds": 0.78,
+      "sha256": "382178e04ce6357dbfac1f1e0221d9ac22ecb4ed264c50f571670f01cf98a29c"
+    },
+    {
+      "id": "v8-high",
+      "file": "loops/v8-high.wav",
+      "source": "v8-run",
+      "segment": [
+        3.12,
+        3.65
+      ],
+      "rpm": 3200,
+      "seconds": 0.424,
+      "sha256": "fe6dcd398b5344fbad507a08d6fe170392c6b2c3e4d7bf1dd57ea662a701a01f"
+    },
+    {
+      "id": "sports-idle",
+      "file": "loops/sports-idle.wav",
+      "source": "sports-run",
+      "segment": [
+        2.9,
+        4.0
+      ],
+      "rpm": 1200,
+      "seconds": 0.99104,
+      "sha256": "1d0581a9267f262ed9924cdd094a0002a8c05ddc35b1bb49c88bf1922cdd0b5b"
+    },
+    {
+      "id": "sports-low",
+      "file": "loops/sports-low.wav",
+      "source": "sports-run",
+      "segment": [
+        1.7,
+        2.3
+      ],
+      "rpm": 1500,
+      "seconds": 0.48725,
+      "sha256": "38cc1d03fa70d3b6800c1b4b195d1f5b5040784ea06dd43e12e406debdce4be5"
+    },
+    {
+      "id": "sports-mid",
+      "file": "loops/sports-mid.wav",
+      "source": "sports-run",
+      "segment": [
+        4.55,
+        5.2
+      ],
+      "rpm": 4200,
+      "seconds": 0.52692,
+      "sha256": "e274245c13aa82608f5f1fca2c642772073dd476fd4801f0fa59c539d8658927"
+    },
+    {
+      "id": "sports-high",
+      "file": "loops/sports-high.wav",
+      "source": "sports-run",
+      "segment": [
+        5.4,
+        6.15
+      ],
+      "rpm": 5200,
+      "seconds": 0.62721,
+      "sha256": "c58604031238c8a6138ced38eac053c2320870a28749d726a033b755255aecbb"
+    },
+    {
+      "id": "tyre-skid",
+      "file": "loops/tyre-skid.wav",
+      "source": "tyre-skid-original",
+      "segment": [
+        0,
+        3
+      ],
+      "rpm": 0,
+      "seconds": 2.88,
+      "sha256": "b195e963cc9c8e02ac0e6c5ca2f6ecdf209386323df63f31bb2267a64395ac57"
+    }
+  ]
+}

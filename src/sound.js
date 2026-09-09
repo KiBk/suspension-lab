@@ -1,4 +1,5 @@
 import { SoundModel } from './sound-model.js';
+import { loadRecordings } from './recordings.js';
 
 export class VehicleAudio {
   constructor(){this.model=new SoundModel();this.enabled=false;this.blocked=false;this.context=null;this.node=null;this.generation=0;}
@@ -8,8 +9,9 @@ export class VehicleAudio {
       this.context=new AudioContext({latencyHint:'interactive'});
       // Start inside the click, before loading the worklet asynchronously.
       const resumed=this.context.resume();
-      await this.context.audioWorklet.addModule(new URL('./sound-worklet.js',import.meta.url));
+      const [,bank]=await Promise.all([this.context.audioWorklet.addModule(new URL('./sound-worklet.js',import.meta.url)),loadRecordings(),resumed]);
       this.node=new AudioWorkletNode(this.context,'vehicle-sounds',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
+      this.node.port.postMessage({type:'recordings',bank},Object.values(bank).map(r=>r.samples.buffer));
       this.gain=this.context.createGain();this.gain.gain.value=0;this.node.connect(this.gain).connect(this.context.destination);
       await resumed;
     }

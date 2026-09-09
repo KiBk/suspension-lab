@@ -1,3 +1,4 @@
+import {audioBank} from './audio-bank.mjs';
 // Offline listening previews use the real vehicle simulation and browser DSP.
 import {mkdir,writeFile} from 'node:fs/promises';
 import {Suspension,STEP} from '../src/physics.js';
@@ -7,7 +8,7 @@ import {VehicleDSP} from '../src/sound-dsp.js';
 const dir=process.argv[2]??'evidence/engines';await mkdir(dir,{recursive:true});
 const sr=24000,block=100,seconds=10,frames=sr*seconds,metrics=[];
 for(const id of Object.keys(POWERTRAINS)){
- const sim=new Suspension(id),model=new SoundModel(),dsp=new VehicleDSP(sr),left=new Float32Array(frames),right=new Float32Array(frames),timeline=[];
+ const sim=new Suspension(id),model=new SoundModel(),dsp=recordedDSP(sr),left=new Float32Array(frames),right=new Float32Array(frames),timeline=[];
  let peak=0,sum=0;
  try{
   for(let n=0;n<frames;n+=block){
@@ -22,3 +23,5 @@ for(const id of Object.keys(POWERTRAINS)){
  }finally{sim.free();}
 }
 await writeFile(`${dir}/metrics.json`,JSON.stringify(metrics,null,2)+'\n');
+
+function recordedDSP(sr){const dsp=new VehicleDSP(sr);dsp.setRecordings(audioBank);return dsp;}

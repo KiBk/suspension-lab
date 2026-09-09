@@ -1,0 +1,67 @@
+[
+  {
+    "id": "diesel-idle",
+    "author": "GiocoSound",
+    "source": "https://freesound.org/people/GiocoSound/sounds/401552/",
+    "download": "https://cdn.freesound.org/previews/401/401552_5820033-hq.mp3",
+    "license": "CC0-1.0",
+    "sha256": "b3a033013349b1886291bc30d0d76459f25aaa0f5e46015d3f2fad8fec2164b1"
+  },
+  {
+    "id": "diesel-low",
+    "author": "GiocoSound",
+    "source": "https://freesound.org/people/GiocoSound/sounds/401556/",
+    "download": "https://cdn.freesound.org/previews/401/401556_5820033-hq.mp3",
+    "license": "CC0-1.0",
+    "sha256": "8e778dd772c0f1d8df27854d89b35e33dff4b887d076111bb2cb86351c9d6396"
+  },
+  {
+    "id": "diesel-mid",
+    "author": "GiocoSound",
+    "source": "https://freesound.org/people/GiocoSound/sounds/401555/",
+    "download": "https://cdn.freesound.org/previews/401/401555_5820033-hq.mp3",
+    "license": "CC0-1.0",
+    "sha256": "7e1cbafd9e88ea5f83bf60315516744fa8710a89d69467886efde15c4f26ceeb"
+  },
+  {
+    "id": "diesel-high",
+    "author": "GiocoSound",
+    "source": "https://freesound.org/people/GiocoSound/sounds/401551/",
+    "download": "https://cdn.freesound.org/previews/401/401551_5820033-hq.mp3",
+    "license": "CC0-1.0",
+    "sha256": "2b905450a59ee1eed51738af8ee829c3afd9e616f517b44938aa0a37e47d4b7f"
+  },
+  {
+    "id": "petrol-run",
+    "author": "TheLittleCrow",
+    "source": "https://freesound.org/people/TheLittleCrow/sounds/669622/",
+    "download": "https://cdn.freesound.org/previews/669/669622_5672786-hq.mp3",
+    "license": "CC0-1.0",
+    "sha256": "fe89840499181282ecaf837201c81cf7cdcffacefa2af6f453d9c29b530f94c0"
+  },
+  {
+    "id": "v8-run",
+    "author": "overmedium",
+    "source": "https://freesound.org/people/overmedium/sounds/651534/",
+    "download": "https://cdn.freesound.org/previews/651/651534_2396512-hq.mp3",
+    "license": "CC0-1.0",
+    "sha256": "65d7f1d60ecc276a48ea974a265bbee0715d6b2e0bd0081a45c57362a61a470c"
+  },
+  {
+    "id": "sports-run",
+    "author": "mmplisskin",
+    "source": "https://freesound.org/people/mmplisskin/sounds/90404/",
+    "download": "https://cdn.freesound.org/previews/90/90404_1473497-hq.mp3",
+    "license": "CC0-1.0",
+    "sha256": "7bf857bc72131b3dfb0e8b3cd9d3793280f9fe11ed7752f0efe530f2272c2d8a"
+  },
+  {
+    "id": "tyre-skid-original",
+    "author": "Tom Haigh (audible-edge); loop edit by qubodup",
+    "source": "https://opengameart.org/content/car-tire-squeal-skid-loop",
+    "original": "https://freesound.org/people/audible-edge/sounds/71739/",
+    "download": "https://opengameart.org/sites/default/files/tires_squal_loop.wav",
+    "license": "CC-BY-3.0",
+    "sha256": "2b341cfa20987388fcca9fd91d8be5056cb6c6c54abc2a97846c2be5e5a4f604"
+  }
+]

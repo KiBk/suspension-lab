@@ -1,3 +1,4 @@
+import {audioBank} from './audio-bank.mjs';
 // Reproducible stereo previews from real physics and the production DSP.
 import {mkdir,writeFile} from 'node:fs/promises';
 import {Suspension,STEP} from '../src/physics.js';
@@ -7,7 +8,7 @@ import {Vector3} from 'three';
 const out=process.argv[2]??'evidence/audio';await mkdir(out,{recursive:true});
 const sr=48000,block=200,report=[];
 for(const scenario of ['press-bounce','baja-drop','baja-quarter','dry-turn','wet-turn','ice-turn']){
-  const sim=new Suspension(),model=new SoundModel(),dsp=new VehicleDSP(sr),rate=scenario==='baja-quarter'?.25:1;
+  const sim=new Suspension(),model=new SoundModel(),dsp=recordedDSP(sr),rate=scenario==='baja-quarter'?.25:1;
   sim.setType(scenario.startsWith('baja')?'baja':'wishbone');
   if(scenario.endsWith('turn')){
     sim.setSurface(scenario.split('-')[0]);sim.setDriving(true);sim.setInput(1,0);
@@ -42,3 +43,5 @@ for(const scenario of ['press-bounce','baja-drop','baja-quarter','dry-turn','wet
   report.push({scenario,seconds,peak,rms:Math.sqrt(sum/(frames*2)),eventCounts,flow,scrub,squeal});
 }
 await writeFile(`${out}/metrics.json`,JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));
+
+function recordedDSP(sr){const dsp=new VehicleDSP(sr);dsp.setRecordings(audioBank);return dsp;}

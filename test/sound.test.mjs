@@ -1,3 +1,4 @@
+import {audioBank} from '../scripts/audio-bank.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SoundModel} from '../src/sound-model.js';
@@ -104,7 +105,7 @@ test('steady flat-road coasting has no artificial suspension impacts',()=>{
 });
 
 test('DSP silence, bounded mixed output, panning, stale-input fade and reset',()=>{
-  const dsp=new VehicleDSP(24000);assert.equal(render(dsp,.1).energy,0);
+  const dsp=recordedDSP(24000);assert.equal(render(dsp,.1).energy,0);
   const voice={roll:.2,flow:.12,scrub:.08,squeal:.3,creak:.02,omega:250,speed:80,pan:-.85};
   const frame={voices:[voice],active:true};const result=render(dsp,.5,frame);
   assert.ok(result.energy>1);assert.ok(result.peak<.65);assert.ok(result.l>result.r*8);
@@ -115,8 +116,10 @@ test('DSP silence, bounded mixed output, panning, stale-input fade and reset',()
 
 test('quarter speed stretches impact decay and simultaneous hard landings stay bounded',()=>{
   const events=Array.from({length:4},(_,wheel)=>({wheel,kind:'land',strength:1}));
-  const normal=new VehicleDSP(24000),slow=new VehicleDSP(24000);
+  const normal=recordedDSP(24000),slow=recordedDSP(24000);
   normal.setFrame({events,active:true});slow.setFrame({events,rate:.25,active:true});
   assert.ok(render(normal,.4).peak<.65);assert.ok(render(slow,.4).peak<.65);
   assert.ok(render(slow,.15).energy>render(normal,.15).energy*10);
 });
+
+function recordedDSP(sr){const dsp=new VehicleDSP(sr);dsp.setRecordings(audioBank);return dsp;}

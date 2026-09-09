@@ -167,13 +167,24 @@ Engine rotational inertia is approximated by a finite RPM response; torsional
 shaft dynamics, battery state and real engine maps are not modeled. Background:
 [MathWorks automatic transmission example](https://www.mathworks.com/help/simulink/slref/modeling-an-automatic-transmission-controller.html).
 
-The combustion DSP fires one pulse per cylinder per two crank revolutions,
-with cylinder/bank variation, intake/exhaust resonances and quiet diesel
-mechanical texture. The V8 has an uneven bank pulse balance; the sports six has
-a brighter intake. RPM, load and shifting alter the sound continuously. The
-sedan has a subdued speed/load-dependent motor whine and is silent at rest.
-These are procedural interpretations, not recordings of particular engines.
-[Firing-cycle reference](https://www.mathworks.com/help/simulink/slref/modeling-engine-timing-using-triggered-subsystems.html).
+Combustion audio uses locally bundled CC0 recordings: Mini Cooper contact audio,
+BMW 120d exterior RPM samples, V8 exhaust and Porsche revs. Adjacent RPM loops
+crossfade with restrained playback-rate changes; load gently changes level and
+filtering. There is no generated combustion oscillator or throttle hiss. The
+sedan retains its quiet procedural motor and is silent at rest. Cars share
+representative recording families; these are not exact engine matches or calibrated
+source RPM measurements. Short source recordings limit fidelity at extreme RPM.
+
+Driving skids use a softened real tyre recording, with slower onset and a shared
+level limit across four wheels. The broad scrub layer is attenuated above walking
+speed. Low-speed suspension scrub, rolling, damper movement, travel-stop taps and
+landing thumps retain their previous synthesis and levels.
+
+[Audio credits, source licences and adaptation details](assets/audio/ATTRIBUTION.md).
+Source downloads and their hashes live in `assets/source/audio/`; only the processed
+24 kHz mono WAV loops in `assets/audio/` are published. Samples load on the first
+Sound click and stay local. Failed loading leaves Sound off and retryable.
+Rebuild loops with `python3 scripts/prepare-audio.py` (NumPy and ffmpeg required).
 
 Generate reproducible ten-second idle / acceleration / overrun listening previews:
 
@@ -230,7 +241,7 @@ resistance depends on contact load and fades smoothly near rest. Airborne tyres
 have no road forces. Carcass deformation, camber thrust,
 self-aligning torque, loose stones and deformable soil are omitted.
 
-Quiet procedural sound follows contact load, slip, damper speed and impacts.
+Quiet suspension and rolling synthesis follows contact load, damper speed and impacts; recorded skids follow slip.
 Suspension noise stays below tyre sounds, rolling hiss is heavily attenuated,
 and a restrained engine/motor layer follows actual drivetrain RPM and load.
 There is no added wind track. Quarter speed stretches the audio with

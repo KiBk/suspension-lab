@@ -1,63 +1,65 @@
 import {POWERTRAINS} from './powertrains.js';
+import {RecordingLoop} from './recordings.js';
 const TAU=2*Math.PI,clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-class Resonator {
- constructor(){this.a=0;this.b=0;}
- tune(hz,q,sr){const w=TAU*clamp(hz,20,sr*.4)/sr,r=Math.sin(w)/(2*q),a=1+r;this.b0=r/a;this.a1=-2*Math.cos(w)/a;this.a2=(1-r)/a;}
- tick(x){const out=this.b0*x+this.a;this.a=-this.a1*out+this.b;this.b=-this.b0*x-this.a2*out;return out;}
-}
-
-// Combustion excites a muffled exhaust and intake, once per cylinder per two
-// crank revolutions. Each bank has its own pulse strength; tiny cycle variation
-// avoids a static synthesizer drone. No broadband wind/engine noise bed.
+// Representative recorded families; the bodies are fictional, so these are
+// sound-design mappings, not claims of exact production-engine acoustics.
+export const ENGINE_RECORDINGS={
+ compact:{family:'petrol',pitch:.92,gain:.105,cutoff:1500},
+ hatchback:{family:'petrol',pitch:1,gain:.11,cutoff:1750},
+ wagon:{family:'petrol',pitch:.95,gain:.12,cutoff:1600},
+ coupe:{family:'sports',pitch:.97,gain:.12,cutoff:1900},
+ sports:{family:'sports',pitch:1,gain:.135,cutoff:2300},
+ minivan:{family:'diesel',pitch:1,gain:.12,cutoff:1500},
+ suv:{family:'petrol',pitch:.85,gain:.125,cutoff:1400},
+ pickup:{family:'v8',pitch:.93,gain:.135,cutoff:1400},
+ offroad:{family:'diesel',pitch:.94,gain:.13,cutoff:1400},
+};
 export class EngineDSP {
  constructor(sampleRate){
-  this.sr=sampleRate;this.id=null;this.phase=0;this.clock=0;this.rpm=0;this.load=0;this.level=0;this.pan=0;this.gain=1;
-  this.exhaust=new Resonator();this.intake=new Resonator();this.block=new Resonator();
-  this.low=0;this.soft=0;this.pulse=0;this.attack=0;this.cylinder=0;this.seed=287431;this.variation=1;this.motorPhase=0;
+  this.sr=sampleRate;this.bank={};this.id=null;this.rpm=0;this.load=0;this.level=0;this.pan=0;this.gain=1;
+  this.low=0;this.soft=0;this.motorPhase=0;this.players=[];
  }
- noise(){let x=this.seed;x^=x<<13;x^=x>>>17;x^=x<<5;this.seed=x;return (x>>>0)/2147483648-1;}
+ setRecordings(bank){this.bank=bank;this.id=null;}
  prepare(frame,active,rate){
   this.target=frame;this.profile=POWERTRAINS[frame?.id];this.rate=rate;
-  if(this.profile&&this.id!==frame.id){this.id=frame.id;this.rpm=frame.rpm;this.pulse=this.attack=this.low=this.soft=this.level=0;this.exhaust=new Resonator();this.intake=new Resonator();this.block=new Resonator();}
-  this.active=active&&!!this.profile;
   const p=this.profile;if(!p)return;
-  const tone=p.tone,rpm=clamp(this.rpm,0,p.redline*1.15);
-  if(!p.electric){
-   this.exhaust.tune((tone.body+rpm*.011)*rate,.8,this.sr);
-   this.intake.tune((tone.intake+rpm*.025)*rate,1.1,this.sr);
-   this.block.tune((tone.diesel?820:620)*rate,1.3,this.sr);
+  if(this.id!==frame.id){
+   this.id=frame.id;this.rpm=frame.rpm;this.load=frame.load??0;this.low=this.soft=this.level=0;
+   this.voice=ENGINE_RECORDINGS[frame.id];
+   this.players=Object.entries(this.bank).filter(([id])=>id.startsWith(`${this.voice?.family}-`))
+    .map(([,recording])=>({rpm:recording.rpm,loop:new RecordingLoop(recording,this.sr)})).sort((a,b)=>a.rpm-b.rpm);
   }
-  this.smooth=1-Math.exp(-1/(this.sr*.025));this.step=rate/this.sr;
-  this.lowA=1-Math.exp(-TAU*(p.electric?3500:750+tone.bright*1000+this.load*500)*this.step);
-  this.decay=Math.exp(-this.step/.0035);this.attackA=1-Math.exp(-this.step/.0007);
+  this.active=active&&(p.electric||this.players.length>0);
+  this.smooth=1-Math.exp(-1/(this.sr*.035));this.step=rate/this.sr;
+  const cutoff=p.electric?3500:this.voice.cutoff*(.7+.3*this.load);
+  this.lowA=1-Math.exp(-TAU*cutoff*this.step);
  }
  tick(){
   const p=this.profile;if(!p)return 0;
   const t=this.target,s=this.smooth;
   this.rpm+=(clamp(t.rpm,0,p.redline*1.15)-this.rpm)*s;this.load+=(clamp(t.load??0,0,1)-this.load)*s;
   this.level+=((this.active?1:0)-this.level)*s;this.pan+=((t.pan??0)-this.pan)*s;this.gain+=((t.gain??1)-this.gain)*s;
-  let out;
+  let out=0;
   if(p.electric){
-   // A quiet loaded motor/gear whine. No idle loop and no simulated exhaust.
+   // Preserve the subdued motor layer: no combustion recording at EV idle.
    this.motorPhase=(this.motorPhase+Math.min(2200,this.rpm/60*4)*this.step)%1;
-   const moving=clamp(this.rpm/650,0,1),effort=.16+.84*this.load;
-   out=(Math.sin(TAU*this.motorPhase)+.16*Math.sin(TAU*this.motorPhase*2))*moving*effort*p.tone.gain;
-  }else{
-   const tone=p.tone,flutter=1+.0025*Math.sin(this.clock*TAU*7.3)+.0015*Math.sin(this.clock*TAU*11.9);
-   this.phase+=this.rpm/120*p.cylinders*this.step*flutter;
-   if(this.phase>=1){
-    this.phase%=1;this.cylinder=(this.cylinder+1)%p.cylinders;
-    // Unequal bank spacing at a cross-plane V8 collector gives a low burble;
-    // other layouts retain even firing with much smaller cylinder variation.
-    const bank=tone.v8?[1,.72,.86,1.14,.72,1.1,1,.83][this.cylinder]:1+tone.uneven*Math.cos(TAU*this.cylinder/p.cylinders);
-    this.variation=.97+.03*this.noise();this.pulse+=bank*this.variation;
+   out=(Math.sin(TAU*this.motorPhase)+.16*Math.sin(TAU*this.motorPhase*2))*clamp(this.rpm/650,0,1)*(.16+.84*this.load)*p.tone.gain;
+  }else if(this.players.length){
+   const rpm=Math.max(1,this.rpm*this.voice.pitch),players=this.players;
+   let lo=0;while(lo<players.length-1&&rpm>players[lo+1].rpm)lo++;
+   const hi=Math.min(lo+1,players.length-1),a=players[lo],b=players[hi];
+   // Equal-power crossfades between adjacent RPM recordings avoid the thin,
+   // exaggerated pitch shift of stretching one idle sample across the rev range.
+   const blend=lo===hi?0:clamp(Math.log(rpm/a.rpm)/Math.log(b.rpm/a.rpm),0,1);
+   for(let i=0;i<players.length;i++){
+    const v=players[i],value=v.loop.tick(clamp(rpm/v.rpm,.35,2.2)*this.rate);
+    if(i===lo)out+=value*Math.cos(blend*Math.PI/2);
+    else if(i===hi)out+=value*Math.sin(blend*Math.PI/2);
    }
-   this.pulse*=this.decay;this.attack+=(this.pulse-this.attack)*this.attackA;
-   const source=this.attack,exhaust=this.exhaust.tick(source),intake=this.intake.tick(source),block=this.block.tick(source*(1+.055*this.noise()));
-   const fullness=.28+.72*Math.pow(this.load,.65),rev=.85+.15*clamp(this.rpm/p.redline,0,1);
-   out=(exhaust*3.8+intake*(.45+tone.bright*this.load)*1.4+block*(tone.diesel?.30:.035))*tone.gain*fullness*rev;
+   // Loading changes presence gently; it never adds a broadband throttle hiss.
+   out*=this.voice.gain*(.32+.68*Math.pow(this.load,.65))*(.9+.1*clamp(this.rpm/p.redline,0,1));
   }
-  this.low+=(out-this.low)*this.lowA;this.soft+=(this.low-this.soft)*this.lowA;this.clock+=this.step;
+  this.low+=(out-this.low)*this.lowA;this.soft+=(this.low-this.soft)*this.lowA;
   return this.soft*this.level*this.gain;
  }
 }
