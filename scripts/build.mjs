@@ -1,0 +1,10 @@
+import { mkdir, copyFile, rm } from 'node:fs/promises';
+await mkdir('public/vendor', { recursive: true });
+for (const file of ['three.module.js', 'three.core.js']) await copyFile(`node_modules/three/build/${file}`, `public/vendor/${file}`);
+for (const file of ['OrbitControls.js']) await copyFile(`node_modules/three/examples/jsm/controls/${file}`, `public/vendor/${file}`);
+await copyFile('node_modules/three/LICENSE', 'public/vendor/THREE-LICENSE.txt');
+await copyFile('node_modules/@dimforge/rapier3d-compat/dist/rapier.mjs', 'public/vendor/rapier.js');
+await copyFile('node_modules/@dimforge/rapier3d-compat/LICENSE', 'public/vendor/RAPIER-LICENSE.txt');
+for (const stale of ['public/vendor/rapier.mjs', 'public/linkage.js']) await rm(stale, { force: true });
+for (const file of ['app.js', 'physics.js', 'model.js', 'view.js', 'tyres.js', 'driving-input.js', 'sound.js', 'sound-model.js', 'sound-dsp.js', 'sound-worklet.js']) await copyFile(`src/${file}`, `public/${file}`);
+console.log('Built self-contained browser app.');
