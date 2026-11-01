@@ -1,0 +1,8 @@
+{
+  "parts": [
+    {
+      "source": "public",
+      "base": "/suspension-lab/"
+    }
+  ]
+}

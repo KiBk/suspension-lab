@@ -48,3 +48,9 @@ public/recordings.js
 
 public/chassis-flex.js
 public/flex-visual.js
+
+/_site/
+
+__pycache__/
+
+*.pyc
